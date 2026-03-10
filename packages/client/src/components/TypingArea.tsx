@@ -52,14 +52,20 @@ export function TypingArea({ text, player, isLocal, cursorOverride, errorIndex }
   // Auto-scroll to keep cursor visible
   useEffect(() => {
     if (!containerRef.current || !isLocal) return
-    const cursorSpan = containerRef.current.querySelector('[data-cursor]')
-    cursorSpan?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const cursorSpan = containerRef.current.querySelector('[data-cursor]') as HTMLElement | null
+    if (!cursorSpan) return
+    const container = containerRef.current
+    // Keep cursor roughly 30% from left edge for read-ahead room
+    const targetOffset = container.clientWidth * 0.3
+    const cursorLeft = cursorSpan.offsetLeft
+    container.scrollLeft = cursorLeft - targetOffset
   }, [cursor, isLocal])
 
   return (
     <div
       ref={containerRef}
-      className="bg-bg border border-border rounded p-4 h-40 overflow-y-auto text-lg leading-relaxed select-none"
+      data-testid="typing-area"
+      className="bg-bg border border-border rounded p-4 h-14 overflow-x-hidden overflow-y-hidden text-lg whitespace-nowrap select-none"
     >
       {displayText.split('').map((char, i) => {
         let className = 'text-text/30' // upcoming

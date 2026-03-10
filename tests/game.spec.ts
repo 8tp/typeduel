@@ -44,7 +44,7 @@ async function setupMatch(browser: Browser): Promise<{
 // Helper: extract passage text from typing area
 async function getPassageText(page: Page): Promise<string> {
   return page.evaluate(() => {
-    const container = document.querySelector('.h-40.overflow-y-auto')
+    const container = document.querySelector('[data-testid="typing-area"]')
     if (!container) return ''
     return (container.textContent || '').replace(/\u00A0/g, ' ')
   })
@@ -198,7 +198,7 @@ test.describe('Game Screen', () => {
     // Timer
     await expect(page1.locator('.tabular-nums')).toBeVisible()
     // Typing area
-    await expect(page1.locator('.h-40.overflow-y-auto').first()).toBeVisible()
+    await expect(page1.locator('[data-testid="typing-area"]').first()).toBeVisible()
 
     await cleanup()
   })
@@ -664,7 +664,7 @@ test.describe('Optimistic Cursor', () => {
     const greenCharsFromTyping = await page1.evaluate(() => {
       const spans = document.querySelectorAll('.text-accent')
       // Filter to only spans inside the typing area
-      const typingArea = document.querySelector('.h-40.overflow-y-auto')
+      const typingArea = document.querySelector('[data-testid="typing-area"]')
       if (!typingArea) return 0
       let count = 0
       spans.forEach(s => { if (typingArea.contains(s)) count++ })
@@ -686,7 +686,7 @@ test.describe('Optimistic Cursor', () => {
 
     // Count green chars after typing 3
     const greenBefore = await page1.evaluate(() => {
-      const typingArea = document.querySelector('.h-40.overflow-y-auto')
+      const typingArea = document.querySelector('[data-testid="typing-area"]')
       if (!typingArea) return 0
       return typingArea.querySelectorAll('.text-accent').length
     })
@@ -697,7 +697,7 @@ test.describe('Optimistic Cursor', () => {
 
     // Green chars should decrease immediately (optimistic)
     const greenAfter = await page1.evaluate(() => {
-      const typingArea = document.querySelector('.h-40.overflow-y-auto')
+      const typingArea = document.querySelector('[data-testid="typing-area"]')
       if (!typingArea) return 0
       return typingArea.querySelectorAll('.text-accent').length
     })
@@ -795,7 +795,7 @@ test.describe('Error Highlighting', () => {
 
     // The cursor character should have error styling (text-damage class)
     const hasErrorStyle = await page1.evaluate(() => {
-      const typingArea = document.querySelector('.h-40.overflow-y-auto')
+      const typingArea = document.querySelector('[data-testid="typing-area"]')
       if (!typingArea) return false
       // Look for the error-char class or text-damage inside typing area
       return typingArea.querySelector('.error-char') !== null ||
@@ -820,7 +820,7 @@ test.describe('Error Highlighting', () => {
 
     // Error styling should be gone
     const hasErrorStyle = await page1.evaluate(() => {
-      const typingArea = document.querySelector('.h-40.overflow-y-auto')
+      const typingArea = document.querySelector('[data-testid="typing-area"]')
       if (!typingArea) return false
       return typingArea.querySelector('.error-char') !== null
     })
