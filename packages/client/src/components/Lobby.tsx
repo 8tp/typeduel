@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { MessageType, type Difficulty } from '@typeduel/shared'
 import { useGameStore, type MatchHistoryEntry } from '../store'
 import { useWebSocket } from '../hooks/useWebSocket'
-import { sfx } from '../audio'
+
 
 const DIFFICULTIES: { value: Difficulty; label: string }[] = [
   { value: 'easy', label: 'Easy' },
@@ -11,13 +11,13 @@ const DIFFICULTIES: { value: Difficulty; label: string }[] = [
 ]
 
 export function Lobby() {
-  const { displayName, setDisplayName, setScreen, roomCode, toggleCrt, crtEnabled, soundEnabled, toggleSound, matchHistory, setIsSpectating } = useGameStore()
+  const { displayName, setDisplayName, setScreen, roomCode, matchHistory, setIsSpectating, defaultDifficulty, setSettingsOpen } = useGameStore()
   const { connect, send } = useWebSocket()
   const [joinCode, setJoinCode] = useState('')
   const [spectateCode, setSpectateCode] = useState('')
   const [waitingRoom, setWaitingRoom] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+  const [difficulty, setDifficulty] = useState<Difficulty>(defaultDifficulty)
   const [showHistory, setShowHistory] = useState(false)
 
   const handleQuickMatch = () => {
@@ -239,19 +239,16 @@ export function Lobby() {
         )}
 
         {/* Settings */}
-        <div className="flex items-center justify-center gap-4 text-xs text-text/30">
+        <div className="flex items-center justify-center text-text/30">
           <button
-            onClick={toggleCrt}
+            onClick={() => setSettingsOpen(true)}
             className="hover:text-text/60 transition-colors"
-            data-testid="crt-toggle"
+            data-testid="settings-btn"
           >
-            CRT: {crtEnabled ? 'ON' : 'OFF'}
-          </button>
-          <button
-            onClick={() => { toggleSound(); sfx.keystroke() }}
-            className="hover:text-text/60 transition-colors"
-          >
-            Sound: {soundEnabled ? 'ON' : 'OFF'}
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+              <path d="M16.2 12.2a1.4 1.4 0 00.28 1.54l.05.05a1.7 1.7 0 11-2.4 2.4l-.05-.05a1.4 1.4 0 00-1.54-.28 1.4 1.4 0 00-.85 1.28v.15a1.7 1.7 0 11-3.4 0v-.08a1.4 1.4 0 00-.92-1.28 1.4 1.4 0 00-1.54.28l-.05.05a1.7 1.7 0 11-2.4-2.4l.05-.05a1.4 1.4 0 00.28-1.54 1.4 1.4 0 00-1.28-.85h-.15a1.7 1.7 0 110-3.4h.08a1.4 1.4 0 001.28-.92 1.4 1.4 0 00-.28-1.54l-.05-.05a1.7 1.7 0 112.4-2.4l.05.05a1.4 1.4 0 001.54.28h.07a1.4 1.4 0 00.85-1.28v-.15a1.7 1.7 0 113.4 0v.08a1.4 1.4 0 00.85 1.28 1.4 1.4 0 001.54-.28l.05-.05a1.7 1.7 0 112.4 2.4l-.05.05a1.4 1.4 0 00-.28 1.54v.07a1.4 1.4 0 001.28.85h.15a1.7 1.7 0 110 3.4h-.08a1.4 1.4 0 00-1.28.85z" />
+            </svg>
           </button>
         </div>
       </div>

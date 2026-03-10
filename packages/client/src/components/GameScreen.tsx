@@ -24,7 +24,7 @@ const TAUNT_LABELS: Record<TauntId, string> = {
 }
 
 export function GameScreen() {
-  const { gameState, playerId, shaking, toggleCrt, crtEnabled, localCursor, activeTaunt, errorIndex } = useGameStore()
+  const { gameState, playerId, shaking, localCursor, activeTaunt, errorIndex, setSettingsOpen, showCombatLog } = useGameStore()
   const { send } = useWebSocket()
   const hiddenInputRef = useRef<HTMLInputElement>(null)
   const [koFlash, setKoFlash] = useState(false)
@@ -207,12 +207,15 @@ export function GameScreen() {
             </span>
           )}
           <button
-            onClick={toggleCrt}
-            className="text-text/20 hover:text-text/40 text-xs transition-colors"
-            title="Toggle CRT scanlines"
+            onClick={() => setSettingsOpen(true)}
+            className="text-text/20 hover:text-text/40 transition-colors"
+            title="Settings"
             data-testid="settings-toggle"
           >
-            {crtEnabled ? 'CRT:ON' : 'CRT:OFF'}
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+              <path d="M16.2 12.2a1.4 1.4 0 00.28 1.54l.05.05a1.7 1.7 0 11-2.4 2.4l-.05-.05a1.4 1.4 0 00-1.54-.28 1.4 1.4 0 00-.85 1.28v.15a1.7 1.7 0 11-3.4 0v-.08a1.4 1.4 0 00-.92-1.28 1.4 1.4 0 00-1.54.28l-.05.05a1.7 1.7 0 11-2.4-2.4l.05-.05a1.4 1.4 0 00.28-1.54 1.4 1.4 0 00-1.28-.85h-.15a1.7 1.7 0 110-3.4h.08a1.4 1.4 0 001.28-.92 1.4 1.4 0 00-.28-1.54l-.05-.05a1.7 1.7 0 112.4-2.4l.05.05a1.4 1.4 0 001.54.28h.07a1.4 1.4 0 00.85-1.28v-.15a1.7 1.7 0 113.4 0v.08a1.4 1.4 0 00.85 1.28 1.4 1.4 0 001.54-.28l.05-.05a1.7 1.7 0 112.4 2.4l-.05.05a1.4 1.4 0 00-.28 1.54v.07a1.4 1.4 0 001.28.85h.15a1.7 1.7 0 110 3.4h-.08a1.4 1.4 0 00-1.28.85z" />
+            </svg>
           </button>
         </div>
       </div>
@@ -244,7 +247,7 @@ export function GameScreen() {
       <AbilityBar player={localPlayer} onUseAbility={handleUseAbility} />
 
       {/* Combat Log */}
-      <CombatLog />
+      {showCombatLog && <CombatLog />}
     </div>
   )
 }

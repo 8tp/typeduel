@@ -187,3 +187,15 @@ body {
 .new-pb-glow {
   animation: new-pb-glow 1.5s ease-in-out infinite;
 }
+
+/* High contrast overrides */
+.high-contrast .text-text\/30 { color: rgba(226, 232, 226, 0.6) !important; }
+.high-contrast .text-text\/40 { color: rgba(226, 232, 226, 0.7) !important; }
+.high-contrast .text-text\/20 { color: rgba(226, 232, 226, 0.5) !important; }
+
+/* Reduced motion */
+.reduced-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

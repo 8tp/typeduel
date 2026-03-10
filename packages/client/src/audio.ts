@@ -7,6 +7,12 @@ function isMuted(): boolean {
   return localStorage.getItem('typeduel_sound') === 'false'
 }
 
+function getVolumeMultiplier(): number {
+  const raw = localStorage.getItem('typeduel_volume')
+  const vol = raw !== null ? Number(raw) : 75
+  return vol / 100
+}
+
 function getCtx(): AudioContext {
   if (!ctx) ctx = new AudioContext()
   return ctx
@@ -25,7 +31,8 @@ function playTone(
   osc.type = type
   osc.frequency.value = freq
   osc.detune.value = detune
-  gain.gain.setValueAtTime(volume, c.currentTime)
+  const vol = volume * getVolumeMultiplier()
+  gain.gain.setValueAtTime(vol, c.currentTime)
   gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration)
   osc.connect(gain)
   gain.connect(c.destination)
@@ -44,7 +51,8 @@ function playNoise(duration: number, volume = 0.08) {
   const source = c.createBufferSource()
   source.buffer = buffer
   const gain = c.createGain()
-  gain.gain.setValueAtTime(volume, c.currentTime)
+  const vol = volume * getVolumeMultiplier()
+  gain.gain.setValueAtTime(vol, c.currentTime)
   gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration)
   source.connect(gain)
   gain.connect(c.destination)

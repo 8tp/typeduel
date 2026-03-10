@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GameState, AbilityId, TauntId } from '@typeduel/shared'
+import type { GameState, AbilityId, TauntId, Difficulty } from '@typeduel/shared'
 import { sfx } from './audio'
 
 import type { PracticeConfig, PracticeState } from './practice/engine'
@@ -73,6 +73,16 @@ interface GameStore {
   practiceConfig: PracticeConfig | null
   practiceState: PracticeState | null
 
+  // Settings
+  uiScale: 'small' | 'medium' | 'large'
+  shakeEnabled: boolean
+  reducedMotion: boolean
+  soundVolume: number
+  defaultDifficulty: Difficulty
+  showCombatLog: boolean
+  highContrast: boolean
+  settingsOpen: boolean
+
   // Polish state
   crtEnabled: boolean
   soundEnabled: boolean
@@ -103,6 +113,14 @@ interface GameStore {
   toggleCrt: () => void
   toggleSound: () => void
   triggerShake: () => void
+  setUiScale: (scale: 'small' | 'medium' | 'large') => void
+  toggleShake: () => void
+  toggleReducedMotion: () => void
+  setSoundVolume: (vol: number) => void
+  setDefaultDifficulty: (d: Difficulty) => void
+  toggleCombatLog: () => void
+  toggleHighContrast: () => void
+  setSettingsOpen: (open: boolean) => void
   reset: () => void
 }
 
@@ -127,6 +145,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   matchHistory: JSON.parse(localStorage.getItem('typeduel_history') ?? '[]'),
   practiceConfig: null,
   practiceState: null,
+  uiScale: (localStorage.getItem('typeduel_uiScale') as 'small' | 'medium' | 'large') || 'medium',
+  shakeEnabled: localStorage.getItem('typeduel_shakeEnabled') !== 'false',
+  reducedMotion: localStorage.getItem('typeduel_reducedMotion') === 'true',
+  soundVolume: Number(localStorage.getItem('typeduel_volume') ?? '75'),
+  defaultDifficulty: (localStorage.getItem('typeduel_defaultDifficulty') as Difficulty) || 'medium',
+  showCombatLog: localStorage.getItem('typeduel_showCombatLog') !== 'false',
+  highContrast: localStorage.getItem('typeduel_highContrast') === 'true',
+  settingsOpen: false,
   crtEnabled: localStorage.getItem('typeduel_crt') !== 'false',
   soundEnabled: localStorage.getItem('typeduel_sound') !== 'false',
   shaking: false,
@@ -197,9 +223,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ soundEnabled: next })
   },
   triggerShake: () => {
+    if (!get().shakeEnabled) return
     set({ shaking: true })
     setTimeout(() => set({ shaking: false }), 200)
   },
+  setUiScale: (scale) => {
+    localStorage.setItem('typeduel_uiScale', scale)
+    set({ uiScale: scale })
+  },
+  toggleShake: () => {
+    const next = !get().shakeEnabled
+    localStorage.setItem('typeduel_shakeEnabled', String(next))
+    set({ shakeEnabled: next })
+  },
+  toggleReducedMotion: () => {
+    const next = !get().reducedMotion
+    localStorage.setItem('typeduel_reducedMotion', String(next))
+    set({ reducedMotion: next })
+  },
+  setSoundVolume: (vol) => {
+    localStorage.setItem('typeduel_volume', String(vol))
+    set({ soundVolume: vol })
+  },
+  setDefaultDifficulty: (d) => {
+    localStorage.setItem('typeduel_defaultDifficulty', d)
+    set({ defaultDifficulty: d })
+  },
+  toggleCombatLog: () => {
+    const next = !get().showCombatLog
+    localStorage.setItem('typeduel_showCombatLog', String(next))
+    set({ showCombatLog: next })
+  },
+  toggleHighContrast: () => {
+    const next = !get().highContrast
+    localStorage.setItem('typeduel_highContrast', String(next))
+    set({ highContrast: next })
+  },
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
   reset: () => set({
     screen: 'lobby',
     roomCode: null,
