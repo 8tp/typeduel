@@ -4,11 +4,23 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { v4 as uuidv4 } from 'uuid'
 import { MessageType, type ClientMessage } from '@typeduel/shared'
 import { GameRoom } from './game-room.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10)
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const app = express()
 app.get('/health', (_req, res) => res.json({ ok: true }))
+
+// In production, serve the client build
+const clientDist = path.resolve(__dirname, '../../client/dist')
+app.use(express.static(clientDist))
+app.get('*', (_req, res, next) => {
+  // Skip API/health routes
+  if (_req.path.startsWith('/health')) return next()
+  res.sendFile(path.join(clientDist, 'index.html'))
+})
 
 const server = createServer(app)
 const wss = new WebSocketServer({ server })

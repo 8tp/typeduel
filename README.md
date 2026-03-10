@@ -34,6 +34,17 @@ npm run --workspace=packages/client dev    # starts client on port 5173
 
 Open two browser tabs to `localhost:5173` to play.
 
+## Deployment
+
+The app is designed to deploy as a single service. The server serves the client's static build in production.
+
+```bash
+npm run build    # builds shared → client → server
+npm start        # starts the server (serves client + WebSocket on same port)
+```
+
+Railway auto-detects the `build` and `start` scripts. Set `PORT` env var if needed (Railway sets this automatically).
+
 ## Testing
 
 ```bash

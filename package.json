@@ -6,6 +6,10 @@
     "packages/server",
     "packages/client"
   ],
+  "scripts": {
+    "build": "npm run --workspace=packages/shared build && npm run --workspace=packages/client build && npm run --workspace=packages/server build",
+    "start": "node packages/server/dist/index.js"
+  },
   "devDependencies": {
     "@playwright/test": "^1.58.2"
   }
