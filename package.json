@@ -8,7 +8,9 @@
   ],
   "scripts": {
     "build": "npm run --workspace=packages/shared build && npm run --workspace=packages/client build && npm run --workspace=packages/server build",
-    "start": "node packages/server/dist/index.js"
+    "start": "node packages/server/dist/index.js",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npx playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2"

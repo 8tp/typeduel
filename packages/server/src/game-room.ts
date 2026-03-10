@@ -20,6 +20,7 @@ import {
   DISCONNECT_GRACE_MS,
 } from '@typeduel/shared'
 import { getRandomPassage } from './text-corpus.js'
+import { generateRoomCode, getAccuracyMultiplier as getAccMult } from './formulas.js'
 
 interface Keystroke {
   char: string
@@ -40,15 +41,6 @@ interface ServerPlayerState extends PlayerState {
   cooldowns: Map<AbilityId, number> // abilityId → timestamp when cooldown expires
   frozenKeystrokeBuffer: { char: string; timestamp: number }[]
   wpmHistory: number[]
-}
-
-function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return code
 }
 
 export class GameRoom {
@@ -295,14 +287,8 @@ export class GameRoom {
     })
   }
 
-  /**
-   * Accuracy multiplier: linearly scales from 0.5 (at 80%) to 1.5 (at 100%).
-   * Below 80%, damage is halved (returns 0.25 as base * 0.5).
-   */
   private getAccuracyMultiplier(accuracy: number): number {
-    if (accuracy < 80) return 0.5
-    // Linear interpolation: 80% → 0.5, 100% → 1.5
-    return 0.5 + ((accuracy - 80) / 20) * 1.0
+    return getAccMult(accuracy)
   }
 
   private damageTick(): void {
