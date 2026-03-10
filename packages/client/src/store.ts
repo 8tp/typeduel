@@ -4,7 +4,7 @@ import { sfx } from './audio'
 
 import type { PracticeConfig, PracticeState } from './practice/engine'
 
-type Screen = 'lobby' | 'matchmaking' | 'countdown' | 'game' | 'results' | 'spectating' | 'practice-setup' | 'practice' | 'practice-results'
+type Screen = 'lobby' | 'matchmaking' | 'waiting-room' | 'countdown' | 'game' | 'results' | 'spectating' | 'practice-setup' | 'practice' | 'practice-results'
 
 export interface MatchHistoryEntry {
   date: string
@@ -261,6 +261,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   reset: () => set({
+    playerId: null,
+    ws: null,
     screen: 'lobby',
     roomCode: null,
     opponentName: null,

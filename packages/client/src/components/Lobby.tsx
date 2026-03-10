@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MessageType, type Difficulty } from '@typeduel/shared'
-import { useGameStore, type MatchHistoryEntry } from '../store'
+import { useGameStore } from '../store'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 
@@ -11,93 +11,46 @@ const DIFFICULTIES: { value: Difficulty; label: string }[] = [
 ]
 
 export function Lobby() {
-  const { displayName, setDisplayName, setScreen, roomCode, matchHistory, setIsSpectating, defaultDifficulty, setSettingsOpen } = useGameStore()
+  const { displayName, setDisplayName, setScreen, matchHistory, setIsSpectating, defaultDifficulty, setSettingsOpen } = useGameStore()
   const { connect, send } = useWebSocket()
   const [joinCode, setJoinCode] = useState('')
   const [spectateCode, setSpectateCode] = useState('')
-  const [waitingRoom, setWaitingRoom] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [difficulty, setDifficulty] = useState<Difficulty>(defaultDifficulty)
   const [showHistory, setShowHistory] = useState(false)
 
   const handleQuickMatch = () => {
     if (!displayName.trim()) return
     connect()
-    setTimeout(() => {
-      send({ type: MessageType.JOIN_QUEUE, displayName: displayName.trim(), difficulty })
-      setScreen('matchmaking')
-    }, 500)
+    send({ type: MessageType.JOIN_QUEUE, displayName: displayName.trim(), difficulty })
+    setScreen('matchmaking')
   }
 
   const handleCreateRoom = () => {
     if (!displayName.trim()) return
     connect()
-    setTimeout(() => {
-      send({ type: MessageType.CREATE_ROOM, displayName: displayName.trim(), difficulty })
-      setWaitingRoom(true)
-    }, 500)
+    send({ type: MessageType.CREATE_ROOM, displayName: displayName.trim(), difficulty })
+    setScreen('waiting-room')
   }
 
   const handleJoinRoom = () => {
     if (!displayName.trim() || !joinCode.trim()) return
     connect()
-    setTimeout(() => {
-      send({
-        type: MessageType.JOIN_ROOM,
-        displayName: displayName.trim(),
-        roomCode: joinCode.trim().toUpperCase(),
-      })
-    }, 500)
+    send({
+      type: MessageType.JOIN_ROOM,
+      displayName: displayName.trim(),
+      roomCode: joinCode.trim().toUpperCase(),
+    })
   }
 
   const handleSpectate = () => {
     if (!spectateCode.trim()) return
     connect()
-    setTimeout(() => {
-      send({
-        type: MessageType.SPECTATE_ROOM,
-        roomCode: spectateCode.trim().toUpperCase(),
-      })
-      setIsSpectating(true)
-      setScreen('spectating')
-    }, 500)
-  }
-
-  const handleCopyCode = async () => {
-    if (!roomCode) return
-    try {
-      await navigator.clipboard.writeText(roomCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Fallback for non-HTTPS
-    }
-  }
-
-  if (waitingRoom && roomCode) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-surface border border-border rounded-lg p-8 w-full max-w-md text-center">
-          <h2 className="text-2xl font-bold text-accent mb-4">Room Created</h2>
-          <p className="text-text/60 mb-2">Share this code with your opponent:</p>
-          <button
-            onClick={handleCopyCode}
-            className="w-full text-4xl font-bold tracking-[0.3em] text-accent bg-bg border border-border rounded p-4 mb-2 hover:border-accent/50 transition-colors cursor-pointer"
-            title="Click to copy"
-            data-testid="room-code"
-          >
-            {roomCode}
-          </button>
-          <p className="text-xs text-text/30 mb-4">
-            {copied ? 'Copied!' : 'Click to copy'}
-          </p>
-          <p className="text-text/40 text-sm">Waiting for opponent to join...</p>
-          <div className="mt-4 flex justify-center">
-            <span className="inline-block w-2 h-2 bg-accent rounded-full animate-pulse" />
-          </div>
-        </div>
-      </div>
-    )
+    send({
+      type: MessageType.SPECTATE_ROOM,
+      roomCode: spectateCode.trim().toUpperCase(),
+    })
+    setIsSpectating(true)
+    setScreen('spectating')
   }
 
   return (

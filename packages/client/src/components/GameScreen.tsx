@@ -195,7 +195,7 @@ export function GameScreen() {
       {/* Top Bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-text/40 text-sm">
-          Room: <span className="text-accent">{gameState.roomId.slice(0, 6)}</span>
+          Room: <span className="text-accent">{gameState.roomCode}</span>
         </div>
         <div className="text-4xl font-bold text-accent tabular-nums">
           {minutes}:{seconds.toString().padStart(2, '0')}

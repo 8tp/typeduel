@@ -1,8 +1,10 @@
 import { useGameStore } from '../store'
+import { useWebSocket } from '../hooks/useWebSocket'
 import { PlayerPanel } from './PlayerPanel'
 
 export function SpectateScreen() {
   const { gameState, reset } = useGameStore()
+  const { disconnect } = useWebSocket()
 
   if (!gameState) return null
 
@@ -18,7 +20,7 @@ export function SpectateScreen() {
       {/* Top Bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-text/40 text-sm">
-          Room: <span className="text-accent">{gameState.roomId.slice(0, 6)}</span>
+          Room: <span className="text-accent">{gameState.roomCode}</span>
         </div>
         <div className="text-4xl font-bold text-accent tabular-nums">
           {minutes}:{seconds.toString().padStart(2, '0')}
@@ -30,7 +32,10 @@ export function SpectateScreen() {
             </span>
           )}
           <button
-            onClick={reset}
+            onClick={() => {
+              disconnect()
+              reset()
+            }}
             className="text-text/20 hover:text-text/40 text-xs transition-colors"
           >
             Leave

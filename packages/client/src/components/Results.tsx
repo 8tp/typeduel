@@ -28,7 +28,7 @@ function WpmSparkline({ data }: { data: number[] }) {
 
 export function Results() {
   const { winnerId, finalStats, playerId, reset, opponentWantsRematch } = useGameStore()
-  const { send } = useWebSocket()
+  const { send, disconnect } = useWebSocket()
   const [rematchSent, setRematchSent] = useState(false)
 
   if (!finalStats) return null
@@ -119,7 +119,10 @@ export function Results() {
             {rematchSent ? 'Waiting for opponent...' : opponentWantsRematch ? 'Accept Rematch' : 'Rematch'}
           </button>
           <button
-            onClick={reset}
+            onClick={() => {
+              disconnect()
+              reset()
+            }}
             className="flex-1 bg-accent text-bg font-bold py-3 rounded hover:bg-accent/90 transition-colors"
           >
             Back to Lobby

@@ -4,6 +4,8 @@ export enum MessageType {
   JOIN_QUEUE = 'JOIN_QUEUE',
   JOIN_ROOM = 'JOIN_ROOM',
   CREATE_ROOM = 'CREATE_ROOM',
+  RESUME_SESSION = 'RESUME_SESSION',
+  LEAVE_ROOM = 'LEAVE_ROOM',
   MATCH_FOUND = 'MATCH_FOUND',
   COUNTDOWN = 'COUNTDOWN',
   GAME_STATE = 'GAME_STATE',
@@ -18,6 +20,7 @@ export enum MessageType {
   TAUNT_RECEIVED = 'TAUNT_RECEIVED',
   SPECTATE_ROOM = 'SPECTATE_ROOM',
   REMATCH_VOTED = 'REMATCH_VOTED',
+  SESSION_RESUMED = 'SESSION_RESUMED',
 }
 
 export type TauntId = 'GG' | 'NICE' | 'OUCH' | 'GL'
@@ -71,7 +74,9 @@ export interface PlayerState {
 
 export interface GameState {
   roomId: string
+  roomCode: string
   status: 'waiting' | 'countdown' | 'active' | 'finished'
+  countdownSeconds: number
   text: string
   timeLeft: number
   players: Record<string, PlayerState>
@@ -110,6 +115,13 @@ export interface CreateRoomMessage {
   difficulty?: Difficulty
 }
 
+export interface ResumeSessionMessage {
+  type: MessageType.RESUME_SESSION
+  playerId: string
+  roomCode: string
+  spectator?: boolean
+}
+
 export interface KeystrokeMessage {
   type: MessageType.KEYSTROKE
   char: string
@@ -123,6 +135,10 @@ export interface UseAbilityMessage {
 
 export interface RematchMessage {
   type: MessageType.REMATCH
+}
+
+export interface LeaveRoomMessage {
+  type: MessageType.LEAVE_ROOM
 }
 
 export interface TauntMessage {
@@ -139,9 +155,11 @@ export type ClientMessage =
   | JoinQueueMessage
   | JoinRoomMessage
   | CreateRoomMessage
+  | ResumeSessionMessage
   | KeystrokeMessage
   | UseAbilityMessage
   | RematchMessage
+  | LeaveRoomMessage
   | TauntMessage
   | SpectateRoomMessage
 
@@ -157,6 +175,15 @@ export interface MatchFoundMessage {
   opponent: PlayerInfo
   roomId: string
   roomCode: string
+}
+
+export interface SessionResumedMessage {
+  type: MessageType.SESSION_RESUMED
+  playerId: string
+  roomId: string
+  roomCode: string
+  isSpectating: boolean
+  opponent: PlayerInfo | null
 }
 
 export interface CountdownMessage {
@@ -215,6 +242,7 @@ export interface RematchVotedMessage {
 
 export type ServerMessage =
   | MatchFoundMessage
+  | SessionResumedMessage
   | CountdownMessage
   | GameStateMessage
   | AbilityUsedMessage

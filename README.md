@@ -11,7 +11,7 @@ Two players type the same passage simultaneously, dealing damage based on WPM an
 - **State:** Zustand
 - **Monorepo:** npm workspaces
 - **Font:** JetBrains Mono
-- **Testing:** Playwright (77 e2e tests)
+- **Testing:** Vitest (95+ unit/component) + Playwright (10 e2e)
 
 ## Project Structure
 
@@ -20,7 +20,7 @@ packages/
   shared/    → types, constants, enums, passages
   server/    → Express + ws, port 3001
   client/    → React + Vite, port 5173
-tests/       → Playwright e2e tests
+tests/       → Playwright e2e tests (critical multi-browser flows only)
 ```
 
 ## Getting Started
@@ -48,10 +48,11 @@ Railway auto-detects the `build` and `start` scripts. Set `PORT` env var if need
 ## Testing
 
 ```bash
-npx playwright test
+npm test          # Vitest unit + component tests (~95 tests, <1s)
+npm run test:e2e  # Playwright e2e tests (~10 tests, ~1.5min)
 ```
 
-Runs 77 end-to-end tests covering lobby UI, matchmaking, game screen, combat mechanics, abilities, spectator mode, match history, streaks, rematch, passage variety, and all practice modes.
+**Vitest** covers shared types/constants, server formulas, practice engine logic, Zustand store, and React component rendering. **Playwright** covers critical multi-browser flows: room creation/joining, typing damage, full game lifecycle, rematch, spectator mode, quick match, and session resume.
 
 ## Features
 
@@ -59,8 +60,10 @@ Runs 77 end-to-end tests covering lobby UI, matchmaking, game screen, combat mec
 - **Real-time WebSocket multiplayer** -- server-authoritative game state broadcast at 10Hz
 - **HP and damage system** -- WPM and accuracy determine damage output each tick
 - **6 combat abilities** -- spend energy to disrupt your opponent or boost yourself
-- **Matchmaking queue** -- automatic pairing or private rooms via room codes
+- **Matchmaking queue** -- automatic pairing (difficulty-matched) or private rooms via room codes
 - **Difficulty selection** -- easy, medium, and hard text passages (45 passages total)
+- **Session resume** -- auto-reconnect on page reload or disconnect (10s grace period)
+- **Waiting room** -- room creator sees code to share while waiting for opponent
 - **Comeback mechanic** -- 1.25x damage boost when below 30% HP
 - **Text exhaustion bonus** -- +3 damage/tick for finishing the passage first
 
@@ -79,6 +82,16 @@ Runs 77 end-to-end tests covering lobby UI, matchmaking, game screen, combat mec
 - **Rematch voting** -- both players can vote for a rematch after a game
 - **Taunt emotes** -- 6 taunt hotkeys (Ctrl+Shift+1-6) with popup animations
 
+### Settings
+- **UI scale** -- small, medium, large font sizes
+- **Screen shake** -- toggle on/off
+- **Reduced motion** -- disables animations for accessibility
+- **High contrast** -- increases text opacity
+- **Sound volume** -- adjustable slider with mute toggle
+- **Default difficulty** -- persisted preference for matchmaking
+- **Combat log** -- toggle visibility during games
+- **CRT scanlines** -- toggle retro overlay effect
+
 ### Polish
 - **Synthesized sound effects** -- 13 Web Audio API sounds, no external files
 - **Visual effects** -- screen shake, floating damage numbers, CRT scanlines, KO flash
@@ -89,8 +102,7 @@ Runs 77 end-to-end tests covering lobby UI, matchmaking, game screen, combat mec
 - **Ability cooldown timers** -- circular progress indicators on ability bar
 - **Results animations** -- bounce-in title, slide-up cards, WPM sparkline chart
 - **Dark terminal aesthetic** -- JetBrains Mono, scanline overlays, neon green accents
-- **CRT toggle** -- enable/disable scanline overlay
-- **Sound toggle** -- mute/unmute with localStorage persistence
+- **Auto-reconnect** -- seamless WebSocket reconnection with session persistence via sessionStorage
 
 ## Combat Abilities
 

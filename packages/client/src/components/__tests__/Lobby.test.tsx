@@ -4,12 +4,19 @@ import userEvent from '@testing-library/user-event'
 import { Lobby } from '../Lobby'
 import { useGameStore } from '../../store'
 
+const connectMock = vi.fn()
+const sendMock = vi.fn()
+const disconnectMock = vi.fn()
+
 vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: () => ({ connect: vi.fn(), send: vi.fn(), disconnect: vi.fn() }),
+  useWebSocket: () => ({ connect: connectMock, send: sendMock, disconnect: disconnectMock }),
 }))
 
 describe('Lobby', () => {
   beforeEach(() => {
+    connectMock.mockReset()
+    sendMock.mockReset()
+    disconnectMock.mockReset()
     useGameStore.setState({
       displayName: '',
       roomCode: null,
@@ -76,5 +83,37 @@ describe('Lobby', () => {
     render(<Lobby />)
     expect(screen.getByTestId('spectate-input')).toBeInTheDocument()
     expect(screen.getByTestId('spectate-btn')).toBeInTheDocument()
+  })
+
+  it('sends quick match immediately after connect', async () => {
+    const user = userEvent.setup()
+    useGameStore.setState({ displayName: 'TestPlayer' })
+    render(<Lobby />)
+
+    await user.click(screen.getByRole('button', { name: 'Quick Match' }))
+
+    expect(connectMock).toHaveBeenCalledTimes(1)
+    expect(sendMock).toHaveBeenCalledWith({
+      type: 'JOIN_QUEUE',
+      displayName: 'TestPlayer',
+      difficulty: 'medium',
+    })
+    expect(useGameStore.getState().screen).toBe('matchmaking')
+  })
+
+  it('sends join room without relying on a timeout', async () => {
+    const user = userEvent.setup()
+    useGameStore.setState({ displayName: 'TestPlayer' })
+    render(<Lobby />)
+
+    await user.type(screen.getByPlaceholderText('ROOM CODE'), 'abc123')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(connectMock).toHaveBeenCalledTimes(1)
+    expect(sendMock).toHaveBeenCalledWith({
+      type: 'JOIN_ROOM',
+      displayName: 'TestPlayer',
+      roomCode: 'ABC123',
+    })
   })
 })
