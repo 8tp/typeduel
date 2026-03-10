@@ -4,6 +4,8 @@ import { sfx } from './audio'
 
 import type { PracticeConfig, PracticeState } from './practice/engine'
 
+let lastDamageSfxTime = 0
+
 type Screen = 'lobby' | 'matchmaking' | 'waiting-room' | 'countdown' | 'game' | 'results' | 'round-end' | 'spectating' | 'practice-setup' | 'practice' | 'practice-results'
 
 export interface MatchHistoryEntry {
@@ -80,7 +82,6 @@ interface GameStore {
 
   // Settings
   uiScale: 'small' | 'medium' | 'large'
-  shakeEnabled: boolean
   reducedMotion: boolean
   soundVolume: number
   defaultDifficulty: Difficulty
@@ -91,7 +92,6 @@ interface GameStore {
   // Polish state
   crtEnabled: boolean
   soundEnabled: boolean
-  shaking: boolean
   prevHp: number
   prevOpponentHp: number
 
@@ -120,9 +120,7 @@ interface GameStore {
   setPracticeState: (state: PracticeState) => void
   toggleCrt: () => void
   toggleSound: () => void
-  triggerShake: () => void
   setUiScale: (scale: 'small' | 'medium' | 'large') => void
-  toggleShake: () => void
   toggleReducedMotion: () => void
   setSoundVolume: (vol: number) => void
   setDefaultDifficulty: (d: Difficulty) => void
@@ -157,7 +155,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   practiceConfig: null,
   practiceState: null,
   uiScale: (localStorage.getItem('typeduel_uiScale') as 'small' | 'medium' | 'large') || 'medium',
-  shakeEnabled: localStorage.getItem('typeduel_shakeEnabled') !== 'false',
   reducedMotion: localStorage.getItem('typeduel_reducedMotion') === 'true',
   soundVolume: Number(localStorage.getItem('typeduel_volume') ?? '75'),
   defaultDifficulty: (localStorage.getItem('typeduel_defaultDifficulty') as Difficulty) || 'medium',
@@ -166,7 +163,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   settingsOpen: false,
   crtEnabled: localStorage.getItem('typeduel_crt') !== 'false',
   soundEnabled: localStorage.getItem('typeduel_sound') !== 'false',
-  shaking: false,
   prevHp: 100,
   prevOpponentHp: 100,
 
@@ -183,26 +179,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setGameState: (state) => {
     const prev = get()
     const playerId = prev.playerId
+    const updates: Partial<GameStore> = { gameState: state }
+
     if (playerId && state.players[playerId]) {
       const player = state.players[playerId]
       const newHp = player.hp
+
       if (newHp < prev.prevHp) {
-        get().triggerShake()
-        sfx.damage()
+        const now = Date.now()
+        // Throttle damage sfx to once per second
+        if (now - lastDamageSfxTime > 1000) {
+          lastDamageSfxTime = now
+          sfx.damage()
+        }
         if (newHp <= 0) sfx.ko()
-        set({ prevHp: newHp })
+        updates.prevHp = newHp
       }
+
       // Reconcile optimistic cursor with server authority
-      set({ localCursor: player.cursor })
+      updates.localCursor = player.cursor
     }
-    // Track opponent HP for hit indicators
+
+    // Track opponent HP
     if (playerId) {
       const opponent = Object.values(state.players).find(p => p.id !== playerId)
       if (opponent) {
-        set({ prevOpponentHp: opponent.hp })
+        updates.prevOpponentHp = opponent.hp
       }
     }
-    set({ gameState: state })
+
+    set(updates)
   },
   setResults: (winnerId, stats) => set({ winnerId, finalStats: stats }),
   setLocalCursor: (cursor) => set({ localCursor: cursor }),
@@ -236,19 +242,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     localStorage.setItem('typeduel_sound', String(next))
     set({ soundEnabled: next })
   },
-  triggerShake: () => {
-    if (!get().shakeEnabled) return
-    set({ shaking: true })
-    setTimeout(() => set({ shaking: false }), 200)
-  },
   setUiScale: (scale) => {
     localStorage.setItem('typeduel_uiScale', scale)
     set({ uiScale: scale })
-  },
-  toggleShake: () => {
-    const next = !get().shakeEnabled
-    localStorage.setItem('typeduel_shakeEnabled', String(next))
-    set({ shakeEnabled: next })
   },
   toggleReducedMotion: () => {
     const next = !get().reducedMotion

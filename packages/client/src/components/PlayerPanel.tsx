@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import type { PlayerState } from '@typeduel/shared'
 import { TypingArea } from './TypingArea'
 import { EffectOverlays } from './EffectOverlays'
@@ -19,7 +19,7 @@ interface DamagePopup {
 
 let popupId = 0
 
-export function PlayerPanel({ player, text, isLocal, label, localCursor, errorIndex }: PlayerPanelProps) {
+export const PlayerPanel = memo(function PlayerPanel({ player, text, isLocal, label, localCursor, errorIndex }: PlayerPanelProps) {
   // HP bar color: green > 60, yellow > 30, red <= 30
   const hpColor =
     player.hp > 60 ? 'bg-accent' : player.hp > 30 ? 'bg-warning' : 'bg-damage'
@@ -103,7 +103,7 @@ export function PlayerPanel({ player, text, isLocal, label, localCursor, errorIn
           />
           {/* Current HP bar (on top) */}
           <div
-            className={`relative h-full ${hpColor} transition-all duration-150`}
+            className={`relative h-full ${hpColor} transition-all duration-500 ease-out`}
             style={{ width: `${player.hp}%` }}
           />
         </div>
@@ -117,7 +117,7 @@ export function PlayerPanel({ player, text, isLocal, label, localCursor, errorIn
         </div>
         <div className="w-full h-2 bg-bg border border-border rounded-full overflow-hidden">
           <div
-            className="h-full bg-energy transition-all duration-300"
+            className="h-full bg-energy transition-all duration-500 ease-out"
             style={{ width: `${player.energy}%` }}
           />
         </div>
@@ -139,4 +139,4 @@ export function PlayerPanel({ player, text, isLocal, label, localCursor, errorIn
       <TypingArea text={text} player={player} isLocal={isLocal} cursorOverride={isLocal ? localCursor : undefined} errorIndex={isLocal ? errorIndex : undefined} />
     </div>
   )
-}
+})

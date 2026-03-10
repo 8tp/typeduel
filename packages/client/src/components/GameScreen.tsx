@@ -7,15 +7,6 @@ import { PlayerPanel } from './PlayerPanel'
 import { AbilityBar } from './AbilityBar'
 import { CombatLog } from './CombatLog'
 
-const ABILITY_HOTKEYS: AbilityId[] = [
-  AbilityId.SURGE,
-  AbilityId.BLACKOUT,
-  AbilityId.SCRAMBLE,
-  AbilityId.PHANTOM_KEYS,
-  AbilityId.FREEZE,
-  AbilityId.MIRROR,
-]
-
 const TAUNT_LABELS: Record<TauntId, string> = {
   GG: 'GG',
   NICE: 'Nice!',
@@ -24,7 +15,7 @@ const TAUNT_LABELS: Record<TauntId, string> = {
 }
 
 export function GameScreen() {
-  const { gameState, playerId, shaking, localCursor, activeTaunt, errorIndex, setSettingsOpen, showCombatLog } = useGameStore()
+  const { gameState, playerId, localCursor, activeTaunt, errorIndex, setSettingsOpen, showCombatLog } = useGameStore()
   const { send } = useWebSocket()
   const hiddenInputRef = useRef<HTMLInputElement>(null)
   const [koFlash, setKoFlash] = useState(false)
@@ -50,29 +41,8 @@ export function GameScreen() {
     }
   }, [gameState, playerId])
 
-  const handleUseAbility = useCallback(
-    (abilityId: AbilityId) => {
-      send({
-        type: MessageType.USE_ABILITY,
-        abilityId,
-      })
-    },
-    [send]
-  )
-
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Ctrl+[1-6] → ability hotkeys
-      if (e.ctrlKey && e.key >= '1' && e.key <= '6') {
-        e.preventDefault()
-        const idx = parseInt(e.key) - 1
-        const abilityId = ABILITY_HOTKEYS[idx]
-        if (abilityId) {
-          handleUseAbility(abilityId)
-        }
-        return
-      }
-
       // Ctrl+[7-9,0] → taunt hotkeys
       if (e.ctrlKey && e.key >= '7' && e.key <= '9') {
         e.preventDefault()
@@ -135,7 +105,7 @@ export function GameScreen() {
         })
       }
     },
-    [send, handleUseAbility]
+    [send]
   )
 
   useEffect(() => {
@@ -164,7 +134,7 @@ export function GameScreen() {
   const isLowHp = localPlayer.hp > 0 && localPlayer.hp < 20
 
   return (
-    <div className={`min-h-screen flex flex-col p-4 ${shaking ? 'screen-shake' : ''}`}>
+    <div className="min-h-screen flex flex-col p-4">
       {/* KO flash overlay */}
       {koFlash && (
         <div className="fixed inset-0 bg-white z-50 pointer-events-none ko-flash" />
@@ -252,7 +222,7 @@ export function GameScreen() {
       </div>
 
       {/* Ability Bar */}
-      <AbilityBar player={localPlayer} onUseAbility={handleUseAbility} />
+      <AbilityBar player={localPlayer} />
 
       {/* Combat Log */}
       {showCombatLog && <CombatLog />}

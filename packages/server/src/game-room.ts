@@ -22,7 +22,7 @@ import {
   DAMAGE_TICK_MS,
   DISCONNECT_GRACE_MS,
 } from '@typeduel/shared'
-import { getRandomPassage } from './text-corpus.js'
+import { buildLongPassage } from './text-corpus.js'
 import { generateRoomCode, calculateDamage } from './formulas.js'
 
 const disconnectGracePeriodMs = Number(process.env.DISCONNECT_GRACE_MS ?? DISCONNECT_GRACE_MS)
@@ -118,7 +118,7 @@ export class GameRoom {
     if (this.status !== 'waiting') return
     this.status = 'countdown'
 
-    const passage = getRandomPassage(this.difficulty)
+    const passage = buildLongPassage(this.difficulty)
     this.text = passage.text
 
     let count = 3
@@ -337,6 +337,11 @@ export class GameRoom {
       }
     }
 
+    // Auto-ability: randomly use abilities for players who have enough energy
+    for (const player of playerArr) {
+      this.tryAutoAbility(player)
+    }
+
     // Track WPM history (one snapshot per second)
     for (const player of playerArr) {
       player.wpmHistory.push(player.wpm)
@@ -397,6 +402,39 @@ export class GameRoom {
       this.endRound()
       return
     }
+  }
+
+  private tryAutoAbility(player: ServerPlayerState): void {
+    const now = Date.now()
+    const opponent = [...this.players.values()].find(p => p.id !== player.id)
+    if (!opponent) return
+
+    // Collect affordable, off-cooldown abilities
+    const available: AbilityId[] = []
+    for (const abilityId of Object.values(AbilityId)) {
+      const config = ABILITY_CONFIGS[abilityId]
+      if (!config) continue
+      if (player.energy < config.cost) continue
+
+      // Check cooldown
+      const cooldownExpiry = player.cooldowns.get(abilityId) ?? 0
+      if (now < cooldownExpiry) continue
+
+      // Check no stacking
+      const target = abilityId === AbilityId.SURGE || abilityId === AbilityId.MIRROR ? player : opponent
+      if (target.activeEffects.some(e => e.abilityId === abilityId)) continue
+
+      available.push(abilityId)
+    }
+
+    if (available.length === 0) return
+
+    // 40% chance per tick to use an ability (so it's not instant every time)
+    if (Math.random() > 0.4) return
+
+    // Pick a random available ability
+    const abilityId = available[Math.floor(Math.random() * available.length)]
+    this.handleAbility(player.id, { type: MessageType.USE_ABILITY, abilityId })
   }
 
   private endRound(): void {
@@ -469,7 +507,7 @@ export class GameRoom {
     this.timeLeft = ROUND_DURATION
 
     // Pick a new passage
-    const passage = getRandomPassage(this.difficulty)
+    const passage = buildLongPassage(this.difficulty)
     this.text = passage.text
 
     // Reset player state for new round (keep roundWins)

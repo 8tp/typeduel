@@ -295,7 +295,6 @@ export function PracticeGame() {
       {isBot && (
         <AbilityBar
           player={localPlayer}
-          onUseAbility={(id) => engineRef.current?.handleAbility(id)}
         />
       )}
     </div>

@@ -160,14 +160,23 @@ test.describe('Multiplayer E2E', () => {
       await page1.bringToFront()
       await expect(page1.getByText('HP').first()).toBeVisible({ timeout: 15000 })
 
-      // Player 1 types fast to deal damage
-      const text = await getPassageText(page1)
-      // Type enough to deal significant damage (don't need entire passage)
-      await typeText(page1, text, Math.min(text.length, 200), 5)
+      // Player 1 types continuously across rounds until match ends (bo3)
+      // Keep typing until VICTORY or DEFEAT appears
+      const resultsLocator = page1.getByText(/VICTORY|DEFEAT/)
+      const maxAttempts = 60 // safety limit
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Check if match is over
+        if (await resultsLocator.isVisible().catch(() => false)) break
 
-      // Wait for round end (KO or timer expiry)
-      const results = page1.getByText(/VICTORY|DEFEAT/)
-      await expect(results).toBeVisible({ timeout: 120000 })
+        // Get current passage and type it
+        const text = await getPassageText(page1).catch(() => '')
+        if (text.length > 0) {
+          await typeText(page1, text, Math.min(text.length, 100), 5)
+        }
+        await page1.waitForTimeout(2000)
+      }
+
+      await expect(resultsLocator).toBeVisible({ timeout: 30000 })
 
       // Should show stats and action buttons
       await expect(page1.getByRole('button', { name: 'Back to Lobby' })).toBeVisible({ timeout: 3000 })
@@ -185,12 +194,18 @@ test.describe('Multiplayer E2E', () => {
   test('rematch voting: both vote → new countdown', async ({ browser }) => {
     const { page1, page2, cleanup } = await setupMatch(browser)
     try {
-      // Type fast to end the round
-      const text = await getPassageText(page1)
-      await typeText(page1, text, text.length, 5)
+      // Type continuously until the full match ends (bo3)
+      const resultsLocator = page1.getByText(/VICTORY|DEFEAT/)
+      for (let attempt = 0; attempt < 60; attempt++) {
+        if (await resultsLocator.isVisible().catch(() => false)) break
+        const text = await getPassageText(page1).catch(() => '')
+        if (text.length > 0) {
+          await typeText(page1, text, Math.min(text.length, 100), 5)
+        }
+        await page1.waitForTimeout(2000)
+      }
 
-      // Wait for results
-      await expect(page1.getByText(/VICTORY|DEFEAT/)).toBeVisible({ timeout: 90000 })
+      await expect(resultsLocator).toBeVisible({ timeout: 30000 })
       await expect(page2.getByText(/VICTORY|DEFEAT/)).toBeVisible({ timeout: 5000 })
 
       // Both players vote rematch

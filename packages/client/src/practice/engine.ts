@@ -337,6 +337,26 @@ export class PracticeEngine {
     sfx.abilityUse()
   }
 
+  private playerAutoAbility(): void {
+    const s = this.state
+    if (s.playerEnergy < 20) return
+    if (Math.random() > 0.4) return
+
+    const all = Object.values(AbilityId)
+    const affordable = all.filter(id => {
+      const config = ABILITY_CONFIGS[id]
+      if (s.playerEnergy < config.cost) return false
+      const isSelf = id === AbilityId.SURGE || id === AbilityId.MIRROR
+      const target = isSelf ? s.playerActiveEffects : s.botActiveEffects
+      return !target.some(e => e.abilityId === id)
+    })
+
+    if (affordable.length === 0) return
+
+    const abilityId = affordable[Math.floor(Math.random() * affordable.length)]
+    this.handleAbility(abilityId)
+  }
+
   private damageTick(): void {
     if (this.state.status !== 'active') return
     const s = this.state
@@ -377,6 +397,9 @@ export class PracticeEngine {
           s.playerEnergy = Math.min(MAX_ENERGY, s.playerEnergy + Math.floor((s.wpm - 40) / 10))
         }
       }
+
+      // Auto-ability for player
+      this.playerAutoAbility()
 
       // Player damage to bot (differential model)
       const playerAccMult = getAccuracyMultiplier(s.accuracy)

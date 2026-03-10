@@ -325,3 +325,20 @@ export function getRandomPassage(difficulty?: Difficulty): Passage {
   const pool = difficulty ? PASSAGES.filter(p => p.difficulty === difficulty) : PASSAGES
   return pool[Math.floor(Math.random() * pool.length)]
 }
+
+/**
+ * Build a long passage (~600+ chars) by concatenating multiple passages.
+ * Ensures enough text for a full 90s round at high WPM.
+ */
+export function buildLongPassage(difficulty?: Difficulty, targetLength: number = 700): Passage {
+  const pool = difficulty ? PASSAGES.filter(p => p.difficulty === difficulty) : PASSAGES
+  const shuffled = [...pool].sort(() => Math.random() - 0.5)
+  let text = ''
+  let i = 0
+  while (text.length < targetLength && i < shuffled.length) {
+    if (text.length > 0) text += ' '
+    text += shuffled[i].text
+    i++
+  }
+  return { text, difficulty: difficulty ?? 'medium' }
+}

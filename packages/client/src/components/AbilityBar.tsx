@@ -22,11 +22,9 @@ const ABILITY_ICONS: Record<AbilityId, string> = {
 
 interface AbilityBarProps {
   player: PlayerState
-  onUseAbility: (abilityId: AbilityId) => void
 }
 
-export function AbilityBar({ player, onUseAbility }: AbilityBarProps) {
-  const [flashingId, setFlashingId] = useState<AbilityId | null>(null)
+export function AbilityBar({ player }: AbilityBarProps) {
   const abilityCooldowns = useGameStore(s => s.abilityCooldowns)
   const [now, setNow] = useState(Date.now())
 
@@ -38,56 +36,50 @@ export function AbilityBar({ player, onUseAbility }: AbilityBarProps) {
     return () => clearInterval(interval)
   }, [abilityCooldowns])
 
-  const handleClick = (abilityId: AbilityId) => {
-    onUseAbility(abilityId)
-    setFlashingId(abilityId)
-    setTimeout(() => setFlashingId(null), 300)
-  }
-
   return (
     <div className="flex justify-center gap-2 mt-4" data-testid="ability-bar">
-      {ABILITY_ORDER.map((abilityId, idx) => {
+      {ABILITY_ORDER.map((abilityId) => {
         const config = ABILITY_CONFIGS[abilityId]
         const hasEnergy = player.energy >= config.cost
-        const isOnCooldown = player.activeEffects.some(
-          e => e.abilityId === abilityId && e.source === player.id
-        )
+        const isActive = player.activeEffects.some(e => e.abilityId === abilityId)
         const cooldownExpiry = abilityCooldowns[abilityId]
         const cooldownRemaining = cooldownExpiry ? Math.max(0, Math.ceil((cooldownExpiry - now) / 1000)) : 0
-        const onCooldown = isOnCooldown || cooldownRemaining > 0
-        const disabled = !hasEnergy || onCooldown
+        const onCooldown = cooldownRemaining > 0
 
         return (
-          <button
+          <div
             key={abilityId}
-            onClick={() => !disabled && handleClick(abilityId)}
-            disabled={disabled}
             className={`
               relative flex flex-col items-center px-3 py-2 rounded border text-xs font-mono
-              transition-all duration-150 min-w-[90px]
-              ${disabled
-                ? 'border-border text-text/20 cursor-not-allowed'
-                : 'border-accent/50 text-text hover:bg-accent/10 hover:border-accent cursor-pointer'
+              min-w-[90px]
+              ${isActive
+                ? 'border-accent bg-accent/10 text-accent'
+                : onCooldown
+                ? 'border-damage/30 text-text/20'
+                : hasEnergy
+                ? 'border-accent/30 text-text/60'
+                : 'border-border text-text/20'
               }
-              ${flashingId === abilityId ? 'ability-flash' : ''}
             `}
             data-ability={abilityId}
-            title={`${config.description} (Ctrl+${idx + 1})`}
+            title={config.description}
           >
             <span className="text-lg mb-0.5">{ABILITY_ICONS[abilityId]}</span>
             <span className="font-bold text-[10px] uppercase tracking-wider">{abilityId.replace('_', ' ')}</span>
             <span className={`text-[10px] ${hasEnergy ? 'text-energy' : 'text-text/20'}`}>
               {config.cost} EP
             </span>
-            <span className="absolute top-0.5 right-1 text-[9px] text-text/30">
-              ^{idx + 1}
-            </span>
+            {isActive && (
+              <span className="absolute top-0.5 right-1 text-[9px] text-accent font-bold">
+                ACTIVE
+              </span>
+            )}
             {cooldownRemaining > 0 && (
               <span className="absolute inset-0 flex items-center justify-center bg-bg/60 rounded text-damage font-bold text-sm" data-testid="cooldown-timer">
                 {cooldownRemaining}s
               </span>
             )}
-          </button>
+          </div>
         )
       })}
     </div>

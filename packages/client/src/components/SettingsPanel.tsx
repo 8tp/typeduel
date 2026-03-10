@@ -29,7 +29,6 @@ export function SettingsPanel() {
   const {
     uiScale, setUiScale,
     crtEnabled, toggleCrt,
-    shakeEnabled, toggleShake,
     reducedMotion, toggleReducedMotion,
     highContrast, toggleHighContrast,
     soundEnabled, toggleSound,
@@ -91,7 +90,6 @@ export function SettingsPanel() {
           </div>
 
           <Toggle label="CRT Scanlines" value={crtEnabled} onChange={toggleCrt} />
-          <Toggle label="Screen Shake" value={shakeEnabled} onChange={toggleShake} />
           <Toggle label="Reduced Motion" value={reducedMotion} onChange={toggleReducedMotion} />
           <Toggle label="High Contrast" value={highContrast} onChange={toggleHighContrast} />
         </div>

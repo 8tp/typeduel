@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, memo } from 'react'
 import { AbilityId, type PlayerState } from '@typeduel/shared'
 
 interface TypingAreaProps {
@@ -40,7 +40,7 @@ function useScramble(text: string, cursor: number, active: boolean): string {
   return active ? scrambled : text
 }
 
-export function TypingArea({ text, player, isLocal, cursorOverride, errorIndex }: TypingAreaProps) {
+export const TypingArea = memo(function TypingArea({ text, player, isLocal, cursorOverride, errorIndex }: TypingAreaProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const cursor = cursorOverride ?? player.cursor
 
@@ -103,4 +103,16 @@ export function TypingArea({ text, player, isLocal, cursorOverride, errorIndex }
       })}
     </div>
   )
-}
+}, (prev, next) => {
+  // Only re-render when cursor, text, effects, or error actually change
+  const prevCursor = prev.cursorOverride ?? prev.player.cursor
+  const nextCursor = next.cursorOverride ?? next.player.cursor
+  return (
+    prev.text === next.text &&
+    prevCursor === nextCursor &&
+    prev.errorIndex === next.errorIndex &&
+    prev.isLocal === next.isLocal &&
+    prev.player.activeEffects.length === next.player.activeEffects.length &&
+    prev.player.activeEffects.every((e, i) => e.abilityId === next.player.activeEffects[i]?.abilityId)
+  )
+})
