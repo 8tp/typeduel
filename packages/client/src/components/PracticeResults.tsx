@@ -1,23 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useGameStore } from '../store'
 import { savePersonalBest, getPersonalBests, getPbKey, type PersonalBest } from '../practice/engine'
-
-function WpmSparkline({ data }: { data: number[] }) {
-  if (!data || data.length < 2) return null
-  const max = Math.max(...data, 1)
-  const w = 240
-  const h = 50
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w
-    const y = h - (v / max) * h
-    return `${x},${y}`
-  }).join(' ')
-  return (
-    <svg width={w} height={h} className="mt-2" data-testid="practice-wpm-sparkline">
-      <polyline points={points} fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  )
-}
+import { WpmChart } from './WpmChart'
 
 export function PracticeResults() {
   const practiceState = useGameStore(s => s.practiceState)
@@ -118,7 +102,7 @@ export function PracticeResults() {
             {practiceState.wpmHistory.length >= 2 && (
               <div className="mt-3">
                 <div className="text-[10px] text-text/30 uppercase">WPM Over Time</div>
-                <WpmSparkline data={practiceState.wpmHistory} />
+                <WpmChart data={practiceState.wpmHistory} height={56} />
               </div>
             )}
           </div>

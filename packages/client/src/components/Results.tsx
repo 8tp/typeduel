@@ -1,30 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { MessageType } from '@typeduel/shared'
 import { useGameStore } from '../store'
 import { useWebSocket } from '../hooks/useWebSocket'
-
-function WpmSparkline({ data }: { data: number[] }) {
-  if (!data || data.length < 2) return null
-  const max = Math.max(...data, 1)
-  const w = 200
-  const h = 40
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w
-    const y = h - (v / max) * h
-    return `${x},${y}`
-  }).join(' ')
-  return (
-    <svg width={w} height={h} className="mt-2" data-testid="wpm-sparkline">
-      <polyline
-        points={points}
-        fill="none"
-        stroke="#22c55e"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
+import { WpmChart } from './WpmChart'
 
 export function Results() {
   const { winnerId, finalStats, playerId, reset, opponentWantsRematch, roundWins, opponentName } = useGameStore()
@@ -100,9 +78,9 @@ export function Results() {
                 </div>
               </div>
               {stats.wpmHistory && stats.wpmHistory.length >= 2 && (
-                <div>
-                  <div className="text-[10px] text-text/30 mt-2 uppercase">WPM Over Time</div>
-                  <WpmSparkline data={stats.wpmHistory} />
+                <div className="mt-2">
+                  <div className="text-[10px] text-text/30 uppercase">WPM Over Time</div>
+                  <WpmChart data={stats.wpmHistory} />
                 </div>
               )}
             </div>

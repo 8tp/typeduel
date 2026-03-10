@@ -6,6 +6,9 @@ import {
   ABILITY_CONFIGS,
   MAX_HP,
   MAX_ENERGY,
+  BASE_DRAIN,
+  WPM_DIFF_SCALE,
+  TEXT_EXHAUST_BONUS,
   PASSAGES,
   getRandomPassage,
 } from '@typeduel/shared'
@@ -378,15 +381,15 @@ export class PracticeEngine {
       // Player damage to bot (differential model)
       const playerAccMult = getAccuracyMultiplier(s.accuracy)
       const playerWpmAdv = Math.max(0, s.wpm - s.botWpm)
-      let playerDmg = (1.5 + playerWpmAdv * 0.06) * playerAccMult
-      if (s.cursor >= s.text.length) playerDmg += 1
+      let playerDmg = (BASE_DRAIN + playerWpmAdv * WPM_DIFF_SCALE) * playerAccMult
+      if (s.cursor >= s.text.length) playerDmg += TEXT_EXHAUST_BONUS
       if (s.playerActiveEffects.some(e => e.abilityId === AbilityId.SURGE)) playerDmg *= 1.5
       if (s.playerHp < 30) playerDmg *= 1.25
 
       // Bot damage to player (differential model)
       const botAccMult = getAccuracyMultiplier(s.botAccuracy)
       const botWpmAdv = Math.max(0, s.botWpm - s.wpm)
-      let botDmg = (1.5 + botWpmAdv * 0.06) * botAccMult
+      let botDmg = (BASE_DRAIN + botWpmAdv * WPM_DIFF_SCALE) * botAccMult
       if (s.botActiveEffects.some(e => e.abilityId === AbilityId.SURGE)) botDmg *= 1.5
       if (s.botHp < 30) botDmg *= 1.25
 
