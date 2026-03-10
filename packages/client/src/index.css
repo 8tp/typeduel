@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #060d06;
+  color: #e2e8e2;
+  min-width: 1024px;
+}
+
+::selection {
+  background-color: #22c55e;
+  color: #060d06;
+}
+
+/* CRT scanline overlay */
+.crt-scanlines::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.03) 0px,
+    rgba(0, 0, 0, 0.03) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+/* Screen shake animation */
+@keyframes shake {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(2px); }
+  40% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  80% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+
+.screen-shake {
+  animation: shake 200ms ease-in-out;
+}
+
+/* Ability flash animation */
+@keyframes ability-flash {
+  0% { background-color: rgba(255, 255, 255, 0.3); }
+  100% { background-color: transparent; }
+}
+
+.ability-flash {
+  animation: ability-flash 300ms ease-out;
+}
+
+/* Combo pulse */
+@keyframes combo-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.combo-pulse {
+  animation: combo-pulse 1s ease-in-out infinite;
+}
+
+/* Floating damage numbers */
+@keyframes damage-float {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-30px); }
+}
+
+.damage-float {
+  animation: damage-float 800ms ease-out forwards;
+}
+
+/* KO flash — full screen white flash */
+@keyframes ko-flash {
+  0% { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
+.ko-flash {
+  animation: ko-flash 400ms ease-out forwards;
+}
