@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { MessageType, AbilityId, type ClientMessage, type ServerMessage } from '@typeduel/shared'
+import { MessageType, AbilityId, ABILITY_CONFIGS, type ClientMessage, type ServerMessage } from '@typeduel/shared'
 import { useGameStore } from '../store'
 import { sfx } from '../audio'
 
@@ -61,17 +61,39 @@ export function useWebSocket() {
         case MessageType.GAME_STATE:
           s.setGameState(msg.state)
           if (msg.state.status === 'active') {
-            s.setScreen('game')
+            if (s.isSpectating) {
+              s.setScreen('spectating')
+            } else {
+              s.setScreen('game')
+            }
           }
           break
 
         case MessageType.ROUND_END: {
           s.setResults(msg.winner, msg.stats)
           s.setScreen('results')
-          const isWinner = msg.winner === useGameStore.getState().playerId
+          s.setOpponentWantsRematch(false)
+          const currentPid = useGameStore.getState().playerId
+          const isWinner = msg.winner === currentPid
           s.addCombatLogEntry(isWinner ? 'You win!' : 'You lose!', isWinner ? 'green' : 'red')
           if (isWinner) sfx.victory()
           else sfx.defeat()
+          // Save match history
+          if (currentPid && msg.stats) {
+            const myStats = msg.stats[currentPid]
+            const oppEntry = Object.entries(msg.stats).find(([id]) => id !== currentPid)
+            if (myStats && oppEntry) {
+              const oppName = useGameStore.getState().opponentName ?? 'Unknown'
+              s.addMatchHistory({
+                date: new Date().toISOString(),
+                opponent: oppName,
+                result: isWinner ? 'W' : 'L',
+                wpm: myStats.wpm,
+                accuracy: myStats.accuracy,
+                damageDealt: myStats.damageDealt,
+              })
+            }
+          }
           break
         }
 
@@ -86,8 +108,26 @@ export function useWebSocket() {
             ? `${actor} activated ${abilityName}`
             : `${actor} used ${abilityName}`
           s.addCombatLogEntry(logText, isYou ? 'green' : 'red')
+          // Track cooldown client-side for timer display
+          if (isYou) {
+            const config = ABILITY_CONFIGS[msg.ability]
+            if (config) {
+              s.setAbilityCooldown(msg.ability, Date.now() + config.cooldown)
+            }
+          }
           break
         }
+
+        case MessageType.TAUNT_RECEIVED: {
+          sfx.taunt()
+          s.setActiveTaunt({ tauntId: msg.tauntId, from: msg.from })
+          setTimeout(() => useGameStore.getState().setActiveTaunt(null), 2000)
+          break
+        }
+
+        case MessageType.REMATCH_VOTED:
+          s.setOpponentWantsRematch(true)
+          break
 
         case MessageType.ERROR:
           console.error(`Server error: ${msg.code} - ${msg.message}`)

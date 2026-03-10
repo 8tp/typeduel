@@ -7,6 +7,8 @@ import {
   type ServerMessage,
   type KeystrokeMessage,
   type UseAbilityMessage,
+  type TauntMessage,
+  type SpectateRoomMessage,
   MessageType,
   AbilityId,
   ABILITY_CONFIGS,
@@ -37,6 +39,7 @@ interface ServerPlayerState extends PlayerState {
   abilitiesUsed: number
   cooldowns: Map<AbilityId, number> // abilityId → timestamp when cooldown expires
   frozenKeystrokeBuffer: { char: string; timestamp: number }[]
+  wpmHistory: number[]
 }
 
 function generateRoomCode(): string {
@@ -55,6 +58,7 @@ export class GameRoom {
   text: string = ''
   timeLeft: number = ROUND_DURATION
   players: Map<string, ServerPlayerState> = new Map()
+  spectators: Map<string, WebSocket> = new Map() // spectatorId → ws
 
   private broadcastInterval: ReturnType<typeof setInterval> | null = null
   private damageInterval: ReturnType<typeof setInterval> | null = null
@@ -82,6 +86,7 @@ export class GameRoom {
       accuracy: 100,
       energy: 0,
       activeEffects: [],
+      streak: 0,
       ws,
       keystrokeLog: [],
       totalCorrect: 0,
@@ -93,6 +98,7 @@ export class GameRoom {
       abilitiesUsed: 0,
       cooldowns: new Map(),
       frozenKeystrokeBuffer: [],
+      wpmHistory: [],
     }
     this.players.set(id, player)
     return this.toPlayerState(player)
@@ -326,6 +332,11 @@ export class GameRoom {
       }
     }
 
+    // Track WPM history (one snapshot per second)
+    for (const player of playerArr) {
+      player.wpmHistory.push(player.wpm)
+    }
+
     // Damage calculation: each player deals damage to opponent
     // Collect damage amounts first, then apply (so MIRROR works symmetrically)
     const damageMap = new Map<string, number>() // playerId → damage they will receive
@@ -346,6 +357,11 @@ export class GameRoom {
       // SURGE: 1.5x damage boost for caster
       if (this.hasEffect(player, AbilityId.SURGE)) {
         damage *= 1.5
+      }
+
+      // Comeback mechanic: 1.25x damage when below 30 HP
+      if (player.hp < 30) {
+        damage *= 1.25
       }
 
       if (damage > 0) {
@@ -400,7 +416,7 @@ export class GameRoom {
 
     const winner = playerArr[0]
 
-    const stats: Record<string, { wpm: number; accuracy: number; damageDealt: number; abilitiesUsed: number; hpRemaining: number }> = {}
+    const stats: Record<string, { wpm: number; accuracy: number; damageDealt: number; abilitiesUsed: number; hpRemaining: number; wpmHistory: number[] }> = {}
     for (const p of playerArr) {
       stats[p.id] = {
         wpm: p.wpm,
@@ -408,6 +424,7 @@ export class GameRoom {
         damageDealt: Math.round(p.damageDealt * 10) / 10,
         abilitiesUsed: p.abilitiesUsed,
         hpRemaining: Math.round(p.hp * 10) / 10,
+        wpmHistory: p.wpmHistory,
       }
     }
 
@@ -442,6 +459,7 @@ export class GameRoom {
       text: this.text,
       timeLeft: this.timeLeft,
       players,
+      spectatorCount: this.spectators.size,
     }
   }
 
@@ -455,6 +473,7 @@ export class GameRoom {
       accuracy: Math.round(p.accuracy * 10) / 10,
       energy: p.energy,
       activeEffects: p.activeEffects,
+      streak: p.consecutiveCorrect,
     }
   }
 
@@ -465,6 +484,14 @@ export class GameRoom {
         player.ws.send(data)
       }
     }
+    // Also send to spectators
+    for (const [specId, ws] of this.spectators) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data)
+      } else {
+        this.spectators.delete(specId)
+      }
+    }
   }
 
   sendTo(playerId: string, msg: ServerMessage): void {
@@ -472,6 +499,27 @@ export class GameRoom {
     if (player && player.ws.readyState === WebSocket.OPEN) {
       player.ws.send(JSON.stringify(msg))
     }
+  }
+
+  addSpectator(spectatorId: string, ws: WebSocket): void {
+    this.spectators.set(spectatorId, ws)
+    // Send current game state immediately so spectator sees the match
+    const state = this.getGameState()
+    ws.send(JSON.stringify({ type: MessageType.GAME_STATE, state }))
+  }
+
+  removeSpectator(spectatorId: string): void {
+    this.spectators.delete(spectatorId)
+  }
+
+  handleTaunt(playerId: string, msg: TauntMessage): void {
+    const opponent = [...this.players.values()].find(p => p.id !== playerId)
+    if (!opponent) return
+    this.sendTo(opponent.id, {
+      type: MessageType.TAUNT_RECEIVED,
+      from: playerId,
+      tauntId: msg.tauntId,
+    })
   }
 
   handleDisconnect(playerId: string): void {
@@ -511,6 +559,17 @@ export class GameRoom {
     if (this.status !== 'finished') return
     this.rematchVotes.add(playerId)
 
+    // Notify the other player that this player voted for rematch
+    if (this.rematchVotes.size === 1) {
+      const opponent = [...this.players.values()].find(p => p.id !== playerId)
+      if (opponent) {
+        this.sendTo(opponent.id, {
+          type: MessageType.REMATCH_VOTED,
+          playerId,
+        })
+      }
+    }
+
     if (this.rematchVotes.size >= 2) {
       // Both players want rematch — reset and start new round
       if (this.destroyTimer) {
@@ -535,10 +594,12 @@ export class GameRoom {
         player.startTime = 0
         player.lastKeystrokeTime = 0
         player.consecutiveCorrect = 0
+        player.streak = 0
         player.damageDealt = 0
         player.abilitiesUsed = 0
         player.cooldowns.clear()
         player.frozenKeystrokeBuffer = []
+        player.wpmHistory = []
       }
 
       this.startCountdown()

@@ -8,6 +8,8 @@ interface PlayerPanelProps {
   text: string
   isLocal: boolean
   label: string
+  localCursor?: number
+  errorIndex?: number | null
 }
 
 interface DamagePopup {
@@ -17,7 +19,7 @@ interface DamagePopup {
 
 let popupId = 0
 
-export function PlayerPanel({ player, text, isLocal, label }: PlayerPanelProps) {
+export function PlayerPanel({ player, text, isLocal, label, localCursor, errorIndex }: PlayerPanelProps) {
   // HP bar color: green > 60, yellow > 30, red <= 30
   const hpColor =
     player.hp > 60 ? 'bg-accent' : player.hp > 30 ? 'bg-warning' : 'bg-damage'
@@ -47,18 +49,28 @@ export function PlayerPanel({ player, text, isLocal, label }: PlayerPanelProps) 
     }
   }, [player.hp])
 
-  // Combo counter (accuracy >95% for 10+ consecutive correct chars)
-  const combo = player.accuracy > 95 ? Math.floor(player.cursor / 10) : 0
+  // Streak-based combo (uses server-tracked consecutive correct count)
+  const streak = player.streak ?? 0
+  const comboTier = streak >= 50 ? 3 : streak >= 20 ? 2 : streak >= 10 ? 1 : 0
 
   return (
     <div className="flex-1 min-w-0 relative">
       {/* Effect overlays (only on local player for offensive effects) */}
       {isLocal && <EffectOverlays effects={player.activeEffects} />}
 
-      {/* Combo counter */}
-      {isLocal && combo >= 1 && (
-        <div className="absolute top-0 right-0 combo-pulse text-accent/40 text-sm font-bold z-10" data-testid="combo">
-          COMBO x{combo}
+      {/* Combo counter with escalating visuals */}
+      {isLocal && comboTier >= 1 && (
+        <div
+          className={`absolute top-0 right-0 font-bold z-10 ${
+            comboTier === 3
+              ? 'text-lg combo-fire text-accent'
+              : comboTier === 2
+              ? 'text-base combo-glow text-accent/80'
+              : 'text-sm combo-pulse text-accent/40'
+          }`}
+          data-testid="combo"
+        >
+          {comboTier === 3 ? 'UNSTOPPABLE' : comboTier === 2 ? 'ON FIRE' : 'STREAK'} x{streak}
         </div>
       )}
 
@@ -124,7 +136,7 @@ export function PlayerPanel({ player, text, isLocal, label }: PlayerPanelProps) 
       </div>
 
       {/* Typing Area */}
-      <TypingArea text={text} player={player} isLocal={isLocal} />
+      <TypingArea text={text} player={player} isLocal={isLocal} cursorOverride={isLocal ? localCursor : undefined} errorIndex={isLocal ? errorIndex : undefined} />
     </div>
   )
 }

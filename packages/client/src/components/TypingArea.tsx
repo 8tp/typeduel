@@ -5,6 +5,8 @@ interface TypingAreaProps {
   text: string
   player: PlayerState
   isLocal: boolean
+  cursorOverride?: number
+  errorIndex?: number | null
 }
 
 function useScramble(text: string, cursor: number, active: boolean): string {
@@ -38,20 +40,21 @@ function useScramble(text: string, cursor: number, active: boolean): string {
   return active ? scrambled : text
 }
 
-export function TypingArea({ text, player, isLocal }: TypingAreaProps) {
+export function TypingArea({ text, player, isLocal, cursorOverride, errorIndex }: TypingAreaProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const cursor = cursorOverride ?? player.cursor
 
   const hasScramble = isLocal && player.activeEffects.some(e => e.abilityId === AbilityId.SCRAMBLE)
   const hasPhantom = isLocal && player.activeEffects.some(e => e.abilityId === AbilityId.PHANTOM_KEYS)
 
-  const displayText = useScramble(text, player.cursor, hasScramble)
+  const displayText = useScramble(text, cursor, hasScramble)
 
   // Auto-scroll to keep cursor visible
   useEffect(() => {
     if (!containerRef.current || !isLocal) return
     const cursorSpan = containerRef.current.querySelector('[data-cursor]')
     cursorSpan?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }, [player.cursor, isLocal])
+  }, [cursor, isLocal])
 
   return (
     <div
@@ -60,24 +63,25 @@ export function TypingArea({ text, player, isLocal }: TypingAreaProps) {
     >
       {displayText.split('').map((char, i) => {
         let className = 'text-text/30' // upcoming
-        if (i < player.cursor) {
-          className = 'text-accent' // correct (server validated)
+        if (i < cursor) {
+          className = 'text-accent' // correct (validated)
         }
-        if (i === player.cursor && isLocal) {
+        if (i === cursor && isLocal) {
+          const hasError = errorIndex === i
           return (
-            <span key={i} data-cursor className="relative">
-              <span className="absolute -left-[1px] top-0 w-[2px] h-[1.2em] bg-accent animate-pulse" />
+            <span key={i} data-cursor className={`relative ${hasError ? 'error-char' : ''}`}>
+              <span className={`absolute -left-[1px] top-0 w-[2px] h-[1.2em] ${hasError ? 'bg-damage' : 'bg-accent'} animate-pulse`} />
               {/* Phantom keys: show ghost characters before real char */}
               {hasPhantom && (
                 <span className="text-text/20 italic">
                   {String.fromCharCode(97 + Math.floor(Math.random() * 26))}
                 </span>
               )}
-              <span className="text-text/60">{char === ' ' ? '\u00A0' : char}</span>
+              <span className={hasError ? 'text-damage font-bold' : 'text-text/60'}>{char === ' ' ? '\u00A0' : char}</span>
             </span>
           )
         }
-        if (i === player.cursor && !isLocal) {
+        if (i === cursor && !isLocal) {
           return (
             <span key={i} className="relative">
               <span className="absolute -left-[1px] top-0 w-[2px] h-[1.2em] bg-damage" />

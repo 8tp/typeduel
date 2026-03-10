@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { MessageType, AbilityId } from '@typeduel/shared'
+import { MessageType, AbilityId, type TauntId } from '@typeduel/shared'
 import { useGameStore } from '../store'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { sfx } from '../audio'
@@ -16,8 +16,15 @@ const ABILITY_HOTKEYS: AbilityId[] = [
   AbilityId.MIRROR,
 ]
 
+const TAUNT_LABELS: Record<TauntId, string> = {
+  GG: 'GG',
+  NICE: 'Nice!',
+  OUCH: 'Ouch!',
+  GL: 'GL HF',
+}
+
 export function GameScreen() {
-  const { gameState, playerId, shaking, toggleCrt, crtEnabled } = useGameStore()
+  const { gameState, playerId, shaking, toggleCrt, crtEnabled, localCursor, activeTaunt, errorIndex } = useGameStore()
   const { send } = useWebSocket()
   const hiddenInputRef = useRef<HTMLInputElement>(null)
   const [koFlash, setKoFlash] = useState(false)
@@ -32,6 +39,15 @@ export function GameScreen() {
       setTimeout(() => setKoFlash(false), 400)
     }
     if (localPlayer) prevLocalHpRef.current = localPlayer.hp
+  }, [gameState, playerId])
+
+  // Low HP heartbeat
+  useEffect(() => {
+    if (!gameState || !playerId) return
+    const localPlayer = gameState.players[playerId]
+    if (localPlayer && localPlayer.hp > 0 && localPlayer.hp < 20) {
+      sfx.heartbeat()
+    }
   }, [gameState, playerId])
 
   const handleUseAbility = useCallback(
@@ -57,6 +73,22 @@ export function GameScreen() {
         return
       }
 
+      // Ctrl+[7-9,0] → taunt hotkeys
+      if (e.ctrlKey && e.key >= '7' && e.key <= '9') {
+        e.preventDefault()
+        const taunts: TauntId[] = ['GG', 'NICE', 'OUCH']
+        const tauntId = taunts[parseInt(e.key) - 7]
+        if (tauntId) {
+          send({ type: MessageType.TAUNT, tauntId })
+        }
+        return
+      }
+      if (e.ctrlKey && e.key === '0') {
+        e.preventDefault()
+        send({ type: MessageType.TAUNT, tauntId: 'GL' })
+        return
+      }
+
       // Prevent defaults for game keys
       if (e.key === 'Backspace' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
         e.preventDefault()
@@ -64,6 +96,11 @@ export function GameScreen() {
 
       if (e.key === 'Backspace') {
         sfx.keystrokeError()
+        // Optimistic cursor update
+        const { localCursor } = useGameStore.getState()
+        if (localCursor > 0) {
+          useGameStore.getState().setLocalCursor(localCursor - 1)
+        }
         send({
           type: MessageType.KEYSTROKE,
           char: 'BACKSPACE',
@@ -74,7 +111,23 @@ export function GameScreen() {
 
       // Printable character (length 1, no modifier)
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        sfx.keystroke()
+        const s = useGameStore.getState()
+        if (s.gameState && s.playerId) {
+          const player = s.gameState.players[s.playerId]
+          const isFrozen = player?.activeEffects.some(eff => eff.abilityId === AbilityId.FREEZE) ?? false
+          const isCorrect = !isFrozen && e.key === s.gameState.text[s.localCursor]
+          if (isCorrect) {
+            sfx.keystroke()
+            s.setLocalCursor(s.localCursor + 1)
+          } else {
+            sfx.keystrokeError()
+            // Flash error at current cursor position
+            s.setErrorIndex(s.localCursor)
+            setTimeout(() => useGameStore.getState().setErrorIndex(null), 300)
+          }
+        } else {
+          sfx.keystroke()
+        }
         send({
           type: MessageType.KEYSTROKE,
           char: e.key,
@@ -108,12 +161,27 @@ export function GameScreen() {
 
   const minutes = Math.floor(gameState.timeLeft / 60)
   const seconds = gameState.timeLeft % 60
+  const isLowHp = localPlayer.hp > 0 && localPlayer.hp < 20
 
   return (
     <div className={`min-h-screen flex flex-col p-4 ${shaking ? 'screen-shake' : ''}`}>
       {/* KO flash overlay */}
       {koFlash && (
         <div className="fixed inset-0 bg-white z-50 pointer-events-none ko-flash" />
+      )}
+
+      {/* Low HP vignette */}
+      {isLowHp && (
+        <div className="fixed inset-0 z-40 pointer-events-none low-hp-vignette" data-testid="low-hp-vignette" />
+      )}
+
+      {/* Taunt display */}
+      {activeTaunt && (
+        <div className="fixed top-1/3 left-1/2 -translate-x-1/2 z-50 pointer-events-none taunt-popup" data-testid="taunt-display">
+          <div className="text-3xl font-bold text-warning bg-bg/80 border border-warning/30 rounded-lg px-6 py-3">
+            {TAUNT_LABELS[activeTaunt.tauntId] ?? activeTaunt.tauntId}
+          </div>
+        </div>
       )}
 
       {/* Hidden input for capturing keystrokes */}
@@ -132,14 +200,21 @@ export function GameScreen() {
         <div className="text-4xl font-bold text-accent tabular-nums">
           {minutes}:{seconds.toString().padStart(2, '0')}
         </div>
-        <button
-          onClick={toggleCrt}
-          className="text-text/20 hover:text-text/40 text-xs transition-colors"
-          title="Toggle CRT scanlines"
-          data-testid="settings-toggle"
-        >
-          {crtEnabled ? 'CRT:ON' : 'CRT:OFF'}
-        </button>
+        <div className="flex items-center gap-3">
+          {gameState.spectatorCount > 0 && (
+            <span className="text-text/30 text-xs" data-testid="spectator-count">
+              {gameState.spectatorCount} watching
+            </span>
+          )}
+          <button
+            onClick={toggleCrt}
+            className="text-text/20 hover:text-text/40 text-xs transition-colors"
+            title="Toggle CRT scanlines"
+            data-testid="settings-toggle"
+          >
+            {crtEnabled ? 'CRT:ON' : 'CRT:OFF'}
+          </button>
+        </div>
       </div>
 
       {/* Player Panels */}
@@ -149,6 +224,8 @@ export function GameScreen() {
           text={gameState.text}
           isLocal={true}
           label="You"
+          localCursor={localCursor}
+          errorIndex={errorIndex}
         />
         {opponent && (
           <>

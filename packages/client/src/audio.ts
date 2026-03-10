@@ -122,4 +122,18 @@ export const sfx = {
       setTimeout(() => playTone(600, 0.15, 'square', 0.12), 50)
     })
   },
+
+  heartbeat() {
+    play(() => {
+      playTone(60, 0.15, 'sine', 0.12)
+      setTimeout(() => playTone(50, 0.2, 'sine', 0.1), 120)
+    })
+  },
+
+  taunt() {
+    play(() => {
+      playTone(500, 0.06, 'square', 0.08)
+      setTimeout(() => playTone(700, 0.06, 'square', 0.08), 60)
+    })
+  },
 }

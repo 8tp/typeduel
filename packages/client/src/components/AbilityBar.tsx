@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AbilityId, ABILITY_CONFIGS, type PlayerState } from '@typeduel/shared'
+import { useGameStore } from '../store'
 
 const ABILITY_ORDER: AbilityId[] = [
   AbilityId.SURGE,
@@ -26,6 +27,16 @@ interface AbilityBarProps {
 
 export function AbilityBar({ player, onUseAbility }: AbilityBarProps) {
   const [flashingId, setFlashingId] = useState<AbilityId | null>(null)
+  const abilityCooldowns = useGameStore(s => s.abilityCooldowns)
+  const [now, setNow] = useState(Date.now())
+
+  // Tick every 100ms to update cooldown timers
+  useEffect(() => {
+    const hasCooldowns = Object.values(abilityCooldowns).some(exp => exp && exp > Date.now())
+    if (!hasCooldowns) return
+    const interval = setInterval(() => setNow(Date.now()), 100)
+    return () => clearInterval(interval)
+  }, [abilityCooldowns])
 
   const handleClick = (abilityId: AbilityId) => {
     onUseAbility(abilityId)
@@ -41,7 +52,10 @@ export function AbilityBar({ player, onUseAbility }: AbilityBarProps) {
         const isOnCooldown = player.activeEffects.some(
           e => e.abilityId === abilityId && e.source === player.id
         )
-        const disabled = !hasEnergy || isOnCooldown
+        const cooldownExpiry = abilityCooldowns[abilityId]
+        const cooldownRemaining = cooldownExpiry ? Math.max(0, Math.ceil((cooldownExpiry - now) / 1000)) : 0
+        const onCooldown = isOnCooldown || cooldownRemaining > 0
+        const disabled = !hasEnergy || onCooldown
 
         return (
           <button
@@ -68,6 +82,11 @@ export function AbilityBar({ player, onUseAbility }: AbilityBarProps) {
             <span className="absolute top-0.5 right-1 text-[9px] text-text/30">
               ^{idx + 1}
             </span>
+            {cooldownRemaining > 0 && (
+              <span className="absolute inset-0 flex items-center justify-center bg-bg/60 rounded text-damage font-bold text-sm" data-testid="cooldown-timer">
+                {cooldownRemaining}s
+              </span>
+            )}
           </button>
         )
       })}

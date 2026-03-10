@@ -1,8 +1,19 @@
 import { create } from 'zustand'
-import type { GameState } from '@typeduel/shared'
+import type { GameState, AbilityId, TauntId } from '@typeduel/shared'
 import { sfx } from './audio'
 
-type Screen = 'lobby' | 'matchmaking' | 'countdown' | 'game' | 'results'
+import type { PracticeConfig, PracticeState } from './practice/engine'
+
+type Screen = 'lobby' | 'matchmaking' | 'countdown' | 'game' | 'results' | 'spectating' | 'practice-setup' | 'practice' | 'practice-results'
+
+export interface MatchHistoryEntry {
+  date: string
+  opponent: string
+  result: 'W' | 'L'
+  wpm: number
+  accuracy: number
+  damageDealt: number
+}
 
 interface GameStore {
   // Connection
@@ -34,16 +45,40 @@ interface GameStore {
     damageDealt: number
     abilitiesUsed: number
     hpRemaining: number
+    wpmHistory?: number[]
   }> | null
 
   // Local optimistic cursor
   localCursor: number
+
+  // Error flash (index of char that was wrong)
+  errorIndex: number | null
+
+  // Ability cooldowns (client-side tracking)
+  abilityCooldowns: Partial<Record<AbilityId, number>> // abilityId → expiry timestamp
+
+  // Taunt
+  activeTaunt: { tauntId: TauntId; from: string } | null
+
+  // Spectating
+  isSpectating: boolean
+
+  // Rematch
+  opponentWantsRematch: boolean
+
+  // Match history
+  matchHistory: MatchHistoryEntry[]
+
+  // Practice mode
+  practiceConfig: PracticeConfig | null
+  practiceState: PracticeState | null
 
   // Polish state
   crtEnabled: boolean
   soundEnabled: boolean
   shaking: boolean
   prevHp: number
+  prevOpponentHp: number
 
   // Actions
   setDisplayName: (name: string) => void
@@ -56,7 +91,15 @@ interface GameStore {
   setGameState: (state: GameState) => void
   setResults: (winnerId: string, stats: Record<string, any>) => void
   setLocalCursor: (cursor: number) => void
+  setErrorIndex: (index: number | null) => void
+  setAbilityCooldown: (abilityId: AbilityId, expiresAt: number) => void
+  setActiveTaunt: (taunt: { tauntId: TauntId; from: string } | null) => void
   addCombatLogEntry: (text: string, color: 'green' | 'red' | 'white') => void
+  setIsSpectating: (val: boolean) => void
+  setOpponentWantsRematch: (val: boolean) => void
+  addMatchHistory: (entry: MatchHistoryEntry) => void
+  setPracticeConfig: (config: PracticeConfig) => void
+  setPracticeState: (state: PracticeState) => void
   toggleCrt: () => void
   toggleSound: () => void
   triggerShake: () => void
@@ -76,10 +119,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   winnerId: null,
   finalStats: null,
   localCursor: 0,
+  errorIndex: null,
+  abilityCooldowns: {},
+  activeTaunt: null,
+  isSpectating: false,
+  opponentWantsRematch: false,
+  matchHistory: JSON.parse(localStorage.getItem('typeduel_history') ?? '[]'),
+  practiceConfig: null,
+  practiceState: null,
   crtEnabled: localStorage.getItem('typeduel_crt') !== 'false',
   soundEnabled: localStorage.getItem('typeduel_sound') !== 'false',
   shaking: false,
   prevHp: 100,
+  prevOpponentHp: 100,
 
   setDisplayName: (name) => {
     localStorage.setItem('typeduel_name', name)
@@ -95,21 +147,45 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const prev = get()
     const playerId = prev.playerId
     if (playerId && state.players[playerId]) {
-      const newHp = state.players[playerId].hp
+      const player = state.players[playerId]
+      const newHp = player.hp
       if (newHp < prev.prevHp) {
         get().triggerShake()
         sfx.damage()
         if (newHp <= 0) sfx.ko()
         set({ prevHp: newHp })
       }
+      // Reconcile optimistic cursor with server authority
+      set({ localCursor: player.cursor })
+    }
+    // Track opponent HP for hit indicators
+    if (playerId) {
+      const opponent = Object.values(state.players).find(p => p.id !== playerId)
+      if (opponent) {
+        set({ prevOpponentHp: opponent.hp })
+      }
     }
     set({ gameState: state })
   },
   setResults: (winnerId, stats) => set({ winnerId, finalStats: stats }),
   setLocalCursor: (cursor) => set({ localCursor: cursor }),
+  setErrorIndex: (index) => set({ errorIndex: index }),
+  setAbilityCooldown: (abilityId, expiresAt) => {
+    set(s => ({ abilityCooldowns: { ...s.abilityCooldowns, [abilityId]: expiresAt } }))
+  },
+  setActiveTaunt: (taunt) => set({ activeTaunt: taunt }),
+  setIsSpectating: (val) => set({ isSpectating: val }),
+  setOpponentWantsRematch: (val) => set({ opponentWantsRematch: val }),
+  addMatchHistory: (entry) => {
+    const history = [...get().matchHistory, entry].slice(-20)
+    localStorage.setItem('typeduel_history', JSON.stringify(history))
+    set({ matchHistory: history })
+  },
   addCombatLogEntry: (text, color) => {
     set(s => ({ combatLog: [...s.combatLog.slice(-50), { id: Date.now() + Math.random(), text, color }] }))
   },
+  setPracticeConfig: (config) => set({ practiceConfig: config }),
+  setPracticeState: (state) => set({ practiceState: state }),
   toggleCrt: () => {
     const next = !get().crtEnabled
     localStorage.setItem('typeduel_crt', String(next))
@@ -134,6 +210,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     winnerId: null,
     finalStats: null,
     localCursor: 0,
+    errorIndex: null,
+    abilityCooldowns: {},
+    activeTaunt: null,
+    isSpectating: false,
+    opponentWantsRematch: false,
+    practiceConfig: null,
+    practiceState: null,
     prevHp: 100,
+    prevOpponentHp: 100,
   }),
 }))

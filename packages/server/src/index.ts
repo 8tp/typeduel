@@ -187,6 +187,30 @@ wss.on('connection', (ws) => {
         rematchRoom.handleRematch(playerId)
         break
       }
+
+      case MessageType.TAUNT: {
+        const tauntRoomId = playerRooms.get(playerId)
+        if (!tauntRoomId) return
+        const tauntRoom = rooms.get(tauntRoomId)
+        if (!tauntRoom) return
+        tauntRoom.handleTaunt(playerId, msg)
+        break
+      }
+
+      case MessageType.SPECTATE_ROOM: {
+        const room = roomsByCode.get(msg.roomCode.toUpperCase())
+        if (!room) {
+          ws.send(JSON.stringify({
+            type: MessageType.ERROR,
+            code: 'ROOM_NOT_FOUND',
+            message: 'Room not found',
+          }))
+          return
+        }
+        room.addSpectator(playerId, ws)
+        playerRooms.set(playerId, room.roomId)
+        break
+      }
     }
   })
 
@@ -200,7 +224,13 @@ wss.on('connection', (ws) => {
     if (roomId) {
       const room = rooms.get(roomId)
       if (room) {
-        room.handleDisconnect(playerId)
+        // Check if spectator
+        if (room.spectators.has(playerId)) {
+          room.removeSpectator(playerId)
+          playerRooms.delete(playerId)
+        } else {
+          room.handleDisconnect(playerId)
+        }
       } else {
         playerRooms.delete(playerId)
       }

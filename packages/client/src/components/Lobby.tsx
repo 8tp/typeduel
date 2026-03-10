@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MessageType, type Difficulty } from '@typeduel/shared'
-import { useGameStore } from '../store'
+import { useGameStore, type MatchHistoryEntry } from '../store'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { sfx } from '../audio'
 
@@ -11,12 +11,14 @@ const DIFFICULTIES: { value: Difficulty; label: string }[] = [
 ]
 
 export function Lobby() {
-  const { displayName, setDisplayName, setScreen, roomCode, toggleCrt, crtEnabled, soundEnabled, toggleSound } = useGameStore()
+  const { displayName, setDisplayName, setScreen, roomCode, toggleCrt, crtEnabled, soundEnabled, toggleSound, matchHistory, setIsSpectating } = useGameStore()
   const { connect, send } = useWebSocket()
   const [joinCode, setJoinCode] = useState('')
+  const [spectateCode, setSpectateCode] = useState('')
   const [waitingRoom, setWaitingRoom] = useState(false)
   const [copied, setCopied] = useState(false)
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+  const [showHistory, setShowHistory] = useState(false)
 
   const handleQuickMatch = () => {
     if (!displayName.trim()) return
@@ -45,6 +47,19 @@ export function Lobby() {
         displayName: displayName.trim(),
         roomCode: joinCode.trim().toUpperCase(),
       })
+    }, 500)
+  }
+
+  const handleSpectate = () => {
+    if (!spectateCode.trim()) return
+    connect()
+    setTimeout(() => {
+      send({
+        type: MessageType.SPECTATE_ROOM,
+        roomCode: spectateCode.trim().toUpperCase(),
+      })
+      setIsSpectating(true)
+      setScreen('spectating')
     }, 500)
   }
 
@@ -161,6 +176,67 @@ export function Lobby() {
             Join
           </button>
         </div>
+
+        {/* Practice */}
+        <button
+          onClick={() => setScreen('practice-setup')}
+          className="w-full border border-text/20 text-text/60 font-bold py-3 rounded mb-3 hover:border-accent/50 hover:text-accent transition-colors"
+          data-testid="practice-btn"
+        >
+          Practice Mode
+        </button>
+
+        {/* Spectate */}
+        <div className="flex gap-2 mb-6">
+          <input
+            type="text"
+            value={spectateCode}
+            onChange={(e) => setSpectateCode(e.target.value.toUpperCase())}
+            placeholder="SPECTATE CODE"
+            maxLength={6}
+            className="flex-1 bg-bg border border-border rounded px-4 py-2 text-text font-mono tracking-wider text-center focus:border-accent focus:outline-none uppercase"
+            data-testid="spectate-input"
+          />
+          <button
+            onClick={handleSpectate}
+            disabled={spectateCode.length < 6}
+            className="px-6 border border-text/20 text-text/40 font-bold py-2 rounded hover:bg-text/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            data-testid="spectate-btn"
+          >
+            Watch
+          </button>
+        </div>
+
+        {/* Match History */}
+        {matchHistory.length > 0 && (
+          <div className="mb-4">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full text-xs text-text/30 hover:text-text/50 transition-colors text-left"
+              data-testid="history-toggle"
+            >
+              Match History ({matchHistory.length}) {showHistory ? '[-]' : '[+]'}
+            </button>
+            {showHistory && (
+              <div className="mt-2 max-h-40 overflow-y-auto space-y-1" data-testid="match-history">
+                {[...matchHistory].reverse().map((entry, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between text-xs bg-bg border border-border rounded px-3 py-1.5"
+                  >
+                    <span className={entry.result === 'W' ? 'text-accent font-bold' : 'text-damage font-bold'}>
+                      {entry.result}
+                    </span>
+                    <span className="text-text/60">vs {entry.opponent}</span>
+                    <span className="text-text/40">{entry.wpm} WPM</span>
+                    <span className="text-text/40">{entry.accuracy}%</span>
+                    <span className="text-text/20">{new Date(entry.date).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Settings */}
         <div className="flex items-center justify-center gap-4 text-xs text-text/30">
