@@ -217,35 +217,53 @@ export function useWebSocket() {
           break
 
         case MessageType.ROUND_END: {
+          const currentPid = useGameStore.getState().playerId
+          const isWinner = msg.winner === currentPid
+
           if (s.isSpectating) {
-            s.addCombatLogEntry('Match finished', 'white')
+            const label = msg.isMatchOver ? 'Match finished' : `Round ${msg.currentRound} finished`
+            s.addCombatLogEntry(label, 'white')
             s.setOpponentWantsRematch(false)
             break
           }
+
           s.setResults(msg.winner, msg.stats)
-          s.setScreen('results')
+          s.setRoundWins(msg.roundWins)
+          s.setCurrentRound(msg.currentRound)
+          s.setIsMatchOver(msg.isMatchOver)
           s.setOpponentWantsRematch(false)
-          syncStoredResumeSession()
-          const currentPid = useGameStore.getState().playerId
-          const isWinner = msg.winner === currentPid
-          s.addCombatLogEntry(isWinner ? 'You win!' : 'You lose!', isWinner ? 'green' : 'red')
-          if (isWinner) sfx.victory()
-          else sfx.defeat()
-          // Save match history
-          if (currentPid && msg.stats) {
-            const myStats = msg.stats[currentPid]
-            const oppEntry = Object.entries(msg.stats).find(([id]) => id !== currentPid)
-            if (myStats && oppEntry) {
-              const oppName = useGameStore.getState().opponentName ?? 'Unknown'
-              s.addMatchHistory({
-                date: new Date().toISOString(),
-                opponent: oppName,
-                result: isWinner ? 'W' : 'L',
-                wpm: myStats.wpm,
-                accuracy: myStats.accuracy,
-                damageDealt: myStats.damageDealt,
-              })
+
+          if (msg.isMatchOver) {
+            s.setScreen('results')
+            syncStoredResumeSession()
+            s.addCombatLogEntry(isWinner ? 'You win the match!' : 'You lose the match!', isWinner ? 'green' : 'red')
+            if (isWinner) sfx.victory()
+            else sfx.defeat()
+            // Save match history only on match end
+            if (currentPid && msg.stats) {
+              const myStats = msg.stats[currentPid]
+              const oppEntry = Object.entries(msg.stats).find(([id]) => id !== currentPid)
+              if (myStats && oppEntry) {
+                const oppName = useGameStore.getState().opponentName ?? 'Unknown'
+                s.addMatchHistory({
+                  date: new Date().toISOString(),
+                  opponent: oppName,
+                  result: isWinner ? 'W' : 'L',
+                  wpm: myStats.wpm,
+                  accuracy: myStats.accuracy,
+                  damageDealt: myStats.damageDealt,
+                })
+              }
             }
+          } else {
+            // Mid-match round end — show brief round results, next round auto-starts
+            s.setScreen('round-end')
+            s.addCombatLogEntry(
+              isWinner ? `Round ${msg.currentRound} won!` : `Round ${msg.currentRound} lost`,
+              isWinner ? 'green' : 'red'
+            )
+            if (isWinner) sfx.victory()
+            else sfx.defeat()
           }
           break
         }

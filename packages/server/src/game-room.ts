@@ -16,12 +16,14 @@ import {
   MAX_HP,
   MAX_ENERGY,
   ROUND_DURATION,
+  ROUNDS_TO_WIN,
+  ROUND_BREAK_MS,
   STATE_BROADCAST_MS,
   DAMAGE_TICK_MS,
   DISCONNECT_GRACE_MS,
 } from '@typeduel/shared'
 import { getRandomPassage } from './text-corpus.js'
-import { generateRoomCode, getAccuracyMultiplier as getAccMult } from './formulas.js'
+import { generateRoomCode, calculateDamage } from './formulas.js'
 
 const disconnectGracePeriodMs = Number(process.env.DISCONNECT_GRACE_MS ?? DISCONNECT_GRACE_MS)
 
@@ -60,10 +62,13 @@ export class GameRoom {
   private damageInterval: ReturnType<typeof setInterval> | null = null
   private countdownTimer: ReturnType<typeof setTimeout> | null = null
   private destroyTimer: ReturnType<typeof setTimeout> | null = null
+  private nextRoundTimer: ReturnType<typeof setTimeout> | null = null
   private disconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
   private rematchVotes: Set<string> = new Set()
   private onDestroy: (roomId: string) => void
   private lastRoundResult: RoundEndMessage | null = null
+  private roundWins: Map<string, number> = new Map()
+  private currentRound: number = 1
   difficulty?: 'easy' | 'medium' | 'hard'
 
   constructor(onDestroy: (roomId: string) => void, difficulty?: 'easy' | 'medium' | 'hard') {
@@ -305,10 +310,6 @@ export class GameRoom {
     })
   }
 
-  private getAccuracyMultiplier(accuracy: number): number {
-    return getAccMult(accuracy)
-  }
-
   private damageTick(): void {
     if (this.status !== 'active') return
 
@@ -341,7 +342,8 @@ export class GameRoom {
       player.wpmHistory.push(player.wpm)
     }
 
-    // Damage calculation: each player deals damage to opponent
+    // Damage calculation: differential model
+    // Damage scales with WPM advantage over opponent, not raw WPM.
     // Collect damage amounts first, then apply (so MIRROR works symmetrically)
     const damageMap = new Map<string, number>() // playerId → damage they will receive
 
@@ -349,24 +351,14 @@ export class GameRoom {
       const opponent = playerArr.find(p => p.id !== player.id)
       if (!opponent) continue
 
-      // Base damage = (wpm / 20) * accuracyMultiplier
-      const accuracyMultiplier = this.getAccuracyMultiplier(player.accuracy)
-      let damage = (player.wpm / 20) * accuracyMultiplier
-
-      // Text exhaustion bonus: +3/tick if player finished the passage
-      if (player.cursor >= this.text.length) {
-        damage += 3
-      }
-
-      // SURGE: 1.5x damage boost for caster
-      if (this.hasEffect(player, AbilityId.SURGE)) {
-        damage *= 1.5
-      }
-
-      // Comeback mechanic: 1.25x damage when below 30 HP
-      if (player.hp < 30) {
-        damage *= 1.25
-      }
+      const damage = calculateDamage(
+        player.wpm,
+        opponent.wpm,
+        player.accuracy,
+        player.cursor >= this.text.length,
+        this.hasEffect(player, AbilityId.SURGE),
+        player.hp < 30,
+      )
 
       if (damage > 0) {
         player.damageDealt += damage
@@ -421,6 +413,19 @@ export class GameRoom {
 
     const winner = playerArr[0]
 
+    // Track round wins
+    if (winner) {
+      const wins = this.roundWins.get(winner.id) ?? 0
+      this.roundWins.set(winner.id, wins + 1)
+    }
+
+    const roundWinsObj: Record<string, number> = {}
+    for (const [id, wins] of this.roundWins) {
+      roundWinsObj[id] = wins
+    }
+
+    const isMatchOver = (this.roundWins.get(winner?.id ?? '') ?? 0) >= ROUNDS_TO_WIN
+
     const stats: Record<string, { wpm: number; accuracy: number; damageDealt: number; abilitiesUsed: number; hpRemaining: number; wpmHistory: number[] }> = {}
     for (const p of playerArr) {
       stats[p.id] = {
@@ -437,14 +442,59 @@ export class GameRoom {
       type: MessageType.ROUND_END,
       winner: winner?.id ?? '',
       stats,
+      roundWins: roundWinsObj,
+      currentRound: this.currentRound,
+      isMatchOver,
     }
 
     this.broadcast(this.lastRoundResult)
 
-    // Destroy room after a delay (unless rematch)
-    this.destroyTimer = setTimeout(() => {
-      this.onDestroy(this.roomId)
-    }, 30000)
+    if (isMatchOver) {
+      // Match is over — destroy room after a delay (unless rematch)
+      this.destroyTimer = setTimeout(() => {
+        this.onDestroy(this.roomId)
+      }, 30000)
+    } else {
+      // More rounds to play — auto-start next round after break
+      this.nextRoundTimer = setTimeout(() => {
+        this.startNextRound()
+      }, ROUND_BREAK_MS)
+    }
+  }
+
+  private startNextRound(): void {
+    this.currentRound++
+    this.status = 'waiting'
+    this.countdownSeconds = 0
+    this.timeLeft = ROUND_DURATION
+
+    // Pick a new passage
+    const passage = getRandomPassage(this.difficulty)
+    this.text = passage.text
+
+    // Reset player state for new round (keep roundWins)
+    for (const player of this.players.values()) {
+      player.hp = MAX_HP
+      player.cursor = 0
+      player.wpm = 0
+      player.accuracy = 100
+      player.energy = 0
+      player.activeEffects = []
+      player.keystrokeLog = []
+      player.totalCorrect = 0
+      player.totalKeystrokes = 0
+      player.startTime = 0
+      player.lastKeystrokeTime = 0
+      player.consecutiveCorrect = 0
+      player.streak = 0
+      player.damageDealt = 0
+      player.abilitiesUsed = 0
+      player.cooldowns.clear()
+      player.frozenKeystrokeBuffer = []
+      player.wpmHistory = []
+    }
+
+    this.startCountdown()
   }
 
   private broadcastState(): void {
@@ -460,6 +510,11 @@ export class GameRoom {
     for (const [id, p] of this.players) {
       players[id] = this.toPlayerState(p)
     }
+    const roundWinsObj: Record<string, number> = {}
+    for (const [id, wins] of this.roundWins) {
+      roundWinsObj[id] = wins
+    }
+
     return {
       roomId: this.roomId,
       roomCode: this.roomCode,
@@ -469,6 +524,8 @@ export class GameRoom {
       timeLeft: this.timeLeft,
       players,
       spectatorCount: this.spectators.size,
+      currentRound: this.currentRound,
+      roundWins: roundWinsObj,
     }
   }
 
@@ -651,6 +708,8 @@ export class GameRoom {
       this.text = ''
       this.timeLeft = ROUND_DURATION
       this.lastRoundResult = null
+      this.roundWins.clear()
+      this.currentRound = 1
 
       for (const player of this.players.values()) {
         player.hp = MAX_HP
@@ -697,6 +756,10 @@ export class GameRoom {
     if (this.countdownTimer) {
       clearTimeout(this.countdownTimer)
       this.countdownTimer = null
+    }
+    if (this.nextRoundTimer) {
+      clearTimeout(this.nextRoundTimer)
+      this.nextRoundTimer = null
     }
     for (const timer of this.disconnectTimers.values()) {
       clearTimeout(timer)

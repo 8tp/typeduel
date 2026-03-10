@@ -375,16 +375,18 @@ export class PracticeEngine {
         }
       }
 
-      // Player damage to bot
+      // Player damage to bot (differential model)
       const playerAccMult = getAccuracyMultiplier(s.accuracy)
-      let playerDmg = (s.wpm / 20) * playerAccMult
-      if (s.cursor >= s.text.length) playerDmg += 3
+      const playerWpmAdv = Math.max(0, s.wpm - s.botWpm)
+      let playerDmg = (1.5 + playerWpmAdv * 0.06) * playerAccMult
+      if (s.cursor >= s.text.length) playerDmg += 1
       if (s.playerActiveEffects.some(e => e.abilityId === AbilityId.SURGE)) playerDmg *= 1.5
       if (s.playerHp < 30) playerDmg *= 1.25
 
-      // Bot damage to player
+      // Bot damage to player (differential model)
       const botAccMult = getAccuracyMultiplier(s.botAccuracy)
-      let botDmg = (s.botWpm / 20) * botAccMult
+      const botWpmAdv = Math.max(0, s.botWpm - s.wpm)
+      let botDmg = (1.5 + botWpmAdv * 0.06) * botAccMult
       if (s.botActiveEffects.some(e => e.abilityId === AbilityId.SURGE)) botDmg *= 1.5
       if (s.botHp < 30) botDmg *= 1.25
 

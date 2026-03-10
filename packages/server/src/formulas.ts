@@ -22,24 +22,32 @@ export function getAccuracyMultiplier(accuracy: number): number {
 }
 
 /**
- * Calculate base damage per tick.
- * @param wpm - words per minute
- * @param accuracy - accuracy percentage (0-100)
- * @param textExhausted - whether the player finished the passage
- * @param hasSurge - whether SURGE ability is active
- * @param lowHp - whether the player is below 30 HP (comeback mechanic)
+ * Calculate damage per tick using differential model.
+ *
+ * Damage scales with the WPM *advantage* over the opponent, not raw WPM.
+ * Equal-speed players barely damage each other (baseDrain only), while
+ * large skill gaps produce fast KOs.
+ *
+ * Target match lengths:
+ *   Equal 80v80 → ~53s    |  80v60 → ~30s
+ *   Equal 100v100 → ~53s  |  100v40 → ~16s
  */
 export function calculateDamage(
   wpm: number,
+  opponentWpm: number,
   accuracy: number,
   textExhausted: boolean = false,
   hasSurge: boolean = false,
   lowHp: boolean = false,
+  baseDrain: number = 1.1,
+  diffScale: number = 0.03,
+  exhaustBonus: number = 1,
 ): number {
   const accuracyMultiplier = getAccuracyMultiplier(accuracy)
-  let damage = (wpm / 20) * accuracyMultiplier
+  const wpmAdvantage = Math.max(0, wpm - opponentWpm)
+  let damage = (baseDrain + wpmAdvantage * diffScale) * accuracyMultiplier
 
-  if (textExhausted) damage += 3
+  if (textExhausted) damage += exhaustBonus
   if (hasSurge) damage *= 1.5
   if (lowHp) damage *= 1.25
 

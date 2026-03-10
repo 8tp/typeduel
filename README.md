@@ -58,7 +58,8 @@ npm run test:e2e  # Playwright e2e tests (~10 tests, ~1.5min)
 
 ### Multiplayer Combat
 - **Real-time WebSocket multiplayer** -- server-authoritative game state broadcast at 10Hz
-- **HP and damage system** -- WPM and accuracy determine damage output each tick
+- **Best-of-3 rounds** -- first to 2 round wins takes the match (90s rounds)
+- **HP and damage system** -- WPM advantage over opponent determines damage output
 - **6 combat abilities** -- spend energy to disrupt your opponent or boost yourself
 - **Matchmaking queue** -- automatic pairing (difficulty-matched) or private rooms via room codes
 - **Difficulty selection** -- easy, medium, and hard text passages (45 passages total)
@@ -119,15 +120,27 @@ Energy accrues as you type. Spend it on abilities using hotkeys (Ctrl+1 through 
 
 ## Damage Formula
 
+Damage scales with the WPM **advantage** over your opponent, not raw WPM. Equal-speed players barely damage each other (base drain only), while large skill gaps produce fast KOs.
+
 ```
-damage = (wpm / 20) * accuracyMultiplier
+wpmAdvantage = max(0, myWpm - opponentWpm)
+damage = (1.1 + wpmAdvantage * 0.03) * accuracyMultiplier
 ```
 
-- **Accuracy multiplier:** linear from 0.5 (at 80% accuracy) to 1.5 (at 100%), capped at 0.5 below 80%
+- **Base drain:** 1.1 HP/tick ensures matches end even between equal players
+- **WPM differential:** +0.03 HP/tick per WPM faster than opponent
+- **Accuracy multiplier:** linear from 0.5 (at 80%) to 1.5 (at 100%), capped at 0.5 below 80%
 - **Surge boost:** 1.5x multiplier while active
 - **Comeback bonus:** 1.25x when below 30% HP
-- **Text exhaustion:** +3 damage/tick for finishing the passage
+- **Text exhaustion:** +1 damage/tick for finishing the passage
 - **Mirror reflect:** 50% of incoming damage reflected back
+
+| Matchup | Time to KO |
+|---------|------------|
+| Equal 80v80 | ~69s |
+| 80 vs 70 | ~56s |
+| 80 vs 60 | ~48s |
+| 100 vs 40 | ~28s |
 
 ## Bot Difficulty
 

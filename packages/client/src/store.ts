@@ -4,7 +4,7 @@ import { sfx } from './audio'
 
 import type { PracticeConfig, PracticeState } from './practice/engine'
 
-type Screen = 'lobby' | 'matchmaking' | 'waiting-room' | 'countdown' | 'game' | 'results' | 'spectating' | 'practice-setup' | 'practice' | 'practice-results'
+type Screen = 'lobby' | 'matchmaking' | 'waiting-room' | 'countdown' | 'game' | 'results' | 'round-end' | 'spectating' | 'practice-setup' | 'practice' | 'practice-results'
 
 export interface MatchHistoryEntry {
   date: string
@@ -63,6 +63,11 @@ interface GameStore {
   // Spectating
   isSpectating: boolean
 
+  // Round tracking (bo3)
+  roundWins: Record<string, number>
+  currentRound: number
+  isMatchOver: boolean
+
   // Rematch
   opponentWantsRematch: boolean
 
@@ -106,6 +111,9 @@ interface GameStore {
   setActiveTaunt: (taunt: { tauntId: TauntId; from: string } | null) => void
   addCombatLogEntry: (text: string, color: 'green' | 'red' | 'white') => void
   setIsSpectating: (val: boolean) => void
+  setRoundWins: (wins: Record<string, number>) => void
+  setCurrentRound: (round: number) => void
+  setIsMatchOver: (val: boolean) => void
   setOpponentWantsRematch: (val: boolean) => void
   addMatchHistory: (entry: MatchHistoryEntry) => void
   setPracticeConfig: (config: PracticeConfig) => void
@@ -141,6 +149,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   abilityCooldowns: {},
   activeTaunt: null,
   isSpectating: false,
+  roundWins: {},
+  currentRound: 1,
+  isMatchOver: false,
   opponentWantsRematch: false,
   matchHistory: JSON.parse(localStorage.getItem('typeduel_history') ?? '[]'),
   practiceConfig: null,
@@ -201,6 +212,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   setActiveTaunt: (taunt) => set({ activeTaunt: taunt }),
   setIsSpectating: (val) => set({ isSpectating: val }),
+  setRoundWins: (wins) => set({ roundWins: wins }),
+  setCurrentRound: (round) => set({ currentRound: round }),
+  setIsMatchOver: (val) => set({ isMatchOver: val }),
   setOpponentWantsRematch: (val) => set({ opponentWantsRematch: val }),
   addMatchHistory: (entry) => {
     const history = [...get().matchHistory, entry].slice(-20)
@@ -276,6 +290,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     abilityCooldowns: {},
     activeTaunt: null,
     isSpectating: false,
+    roundWins: {},
+    currentRound: 1,
+    isMatchOver: false,
     opponentWantsRematch: false,
     practiceConfig: null,
     practiceState: null,

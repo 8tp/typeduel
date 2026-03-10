@@ -81,16 +81,25 @@ export interface GameState {
   timeLeft: number
   players: Record<string, PlayerState>
   spectatorCount: number
+  currentRound: number
+  roundWins: Record<string, number>
 }
 
 // ── Constants ──
 
 export const MAX_HP = 100
 export const MAX_ENERGY = 100
-export const ROUND_DURATION = 60 // seconds
+export const ROUND_DURATION = 90 // seconds
+export const ROUNDS_TO_WIN = 2  // best-of-3 (first to 2 wins)
+export const ROUND_BREAK_MS = 5000 // pause between rounds
 export const DAMAGE_TICK_MS = 1000
 export const STATE_BROADCAST_MS = 100
 export const DISCONNECT_GRACE_MS = 10000
+
+// Damage formula constants (differential model)
+export const BASE_DRAIN = 1.1        // HP/tick dealt by every active player
+export const WPM_DIFF_SCALE = 0.03   // bonus HP/tick per WPM advantage over opponent
+export const TEXT_EXHAUST_BONUS = 1   // bonus HP/tick when passage is completed
 
 // ── Client → Server Messages ──
 
@@ -216,6 +225,9 @@ export interface RoundEndMessage {
   type: MessageType.ROUND_END
   winner: string
   stats: Record<string, FinalStats>
+  roundWins: Record<string, number>
+  currentRound: number
+  isMatchOver: boolean
 }
 
 export interface ErrorMessage {

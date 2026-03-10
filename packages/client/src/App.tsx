@@ -6,6 +6,7 @@ import { WaitingRoom } from './components/WaitingRoom'
 import { Countdown } from './components/Countdown'
 import { GameScreen } from './components/GameScreen'
 import { Results } from './components/Results'
+import { RoundEnd } from './components/RoundEnd'
 import { SpectateScreen } from './components/SpectateScreen'
 import { PracticeSetup } from './components/PracticeSetup'
 import { PracticeGame } from './components/PracticeGame'
@@ -61,6 +62,7 @@ export function App() {
       {screen === 'countdown' && <Countdown />}
       {screen === 'game' && <GameScreen />}
       {screen === 'spectating' && <SpectateScreen />}
+      {screen === 'round-end' && <RoundEnd />}
       {screen === 'results' && <Results />}
       {screen === 'practice-setup' && <PracticeSetup />}
       {screen === 'practice' && <PracticeGame />}

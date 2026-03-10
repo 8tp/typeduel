@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { MessageType, AbilityId, type TauntId } from '@typeduel/shared'
+import { MessageType, AbilityId, ROUNDS_TO_WIN, type TauntId } from '@typeduel/shared'
 import { useGameStore } from '../store'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { sfx } from '../audio'
@@ -194,8 +194,16 @@ export function GameScreen() {
 
       {/* Top Bar */}
       <div className="flex items-center justify-between mb-4">
-        <div className="text-text/40 text-sm">
-          Room: <span className="text-accent">{gameState.roomCode}</span>
+        <div className="text-text/40 text-sm space-y-0.5">
+          <div>Room: <span className="text-accent">{gameState.roomCode}</span></div>
+          <div className="text-xs">
+            Round {gameState.currentRound}/{ROUNDS_TO_WIN * 2 - 1}
+            {playerId && (
+              <span className="ml-2 text-accent">
+                {gameState.roundWins[playerId] ?? 0}–{Object.entries(gameState.roundWins).find(([id]) => id !== playerId)?.[1] ?? 0}
+              </span>
+            )}
+          </div>
         </div>
         <div className="text-4xl font-bold text-accent tabular-nums">
           {minutes}:{seconds.toString().padStart(2, '0')}

@@ -27,7 +27,7 @@ function WpmSparkline({ data }: { data: number[] }) {
 }
 
 export function Results() {
-  const { winnerId, finalStats, playerId, reset, opponentWantsRematch } = useGameStore()
+  const { winnerId, finalStats, playerId, reset, opponentWantsRematch, roundWins, opponentName } = useGameStore()
   const { send, disconnect } = useWebSocket()
   const [rematchSent, setRematchSent] = useState(false)
 
@@ -35,6 +35,8 @@ export function Results() {
 
   const isWinner = winnerId === playerId
   const players = Object.entries(finalStats)
+  const myWins = playerId ? (roundWins[playerId] ?? 0) : 0
+  const oppWins = Object.entries(roundWins).find(([id]) => id !== playerId)?.[1] ?? 0
 
   const handleRematch = () => {
     send({ type: MessageType.REMATCH })
@@ -44,6 +46,15 @@ export function Results() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="bg-surface border border-border rounded-lg p-8 w-full max-w-2xl">
+        {/* Match score */}
+        <div className="flex items-center justify-center gap-6 mb-4 text-2xl font-mono">
+          <span className="text-xs uppercase tracking-wider text-text/40">You</span>
+          <span className="text-green-400 text-3xl">{myWins}</span>
+          <span className="text-text/20">—</span>
+          <span className="text-red-400 text-3xl">{oppWins}</span>
+          <span className="text-xs uppercase tracking-wider text-text/40">{opponentName ?? 'Opp'}</span>
+        </div>
+
         <h2
           className={`text-4xl font-bold text-center mb-8 results-title ${
             isWinner ? 'text-accent' : 'text-damage'
