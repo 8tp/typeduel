@@ -2,5 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .env
+.env.*
 test-results/
 playwright-report/
+*.log
+.DS_Store
