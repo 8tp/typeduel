@@ -34,6 +34,27 @@ const playerRooms = new Map<string, string>()       // playerId → roomId
 // Matchmaking queue: [{ id, displayName, ws }]
 const matchQueue: { id: string; displayName: string; ws: WebSocket; difficulty?: 'easy' | 'medium' | 'hard' }[] = []
 
+function getQueueDifficulty(entry: { difficulty?: 'easy' | 'medium' | 'hard' }) {
+  return entry.difficulty ?? 'medium'
+}
+
+function dequeueMatchPair() {
+  for (let i = 0; i < matchQueue.length; i++) {
+    const first = matchQueue[i]
+    const matchIndex = matchQueue.findIndex((candidate, candidateIndex) => {
+      return candidateIndex > i && getQueueDifficulty(candidate) === getQueueDifficulty(first)
+    })
+
+    if (matchIndex !== -1) {
+      const [second] = matchQueue.splice(matchIndex, 1)
+      const [matchedFirst] = matchQueue.splice(i, 1)
+      return [matchedFirst, second]
+    }
+  }
+
+  return null
+}
+
 function destroyRoom(roomId: string) {
   const room = rooms.get(roomId)
   if (room) {
@@ -53,11 +74,11 @@ function tryMatchmaking() {
     }
   }
 
-  while (matchQueue.length >= 2) {
-    const p1 = matchQueue.shift()!
-    const p2 = matchQueue.shift()!
+  let pair = dequeueMatchPair()
+  while (pair) {
+    const [p1, p2] = pair
 
-    const room = new GameRoom(destroyRoom, p1.difficulty)
+    const room = new GameRoom(destroyRoom, getQueueDifficulty(p1))
     rooms.set(room.roomId, room)
     roomsByCode.set(room.roomCode, room)
 
@@ -82,16 +103,17 @@ function tryMatchmaking() {
 
     // Start countdown
     room.startCountdown()
+    pair = dequeueMatchPair()
   }
 }
 
 // ── WebSocket handling ──
 
 wss.on('connection', (ws) => {
-  const playerId = uuidv4()
+  let connectionId = uuidv4()
 
   // Send player ID immediately
-  ws.send(JSON.stringify({ type: MessageType.WELCOME, playerId }))
+  ws.send(JSON.stringify({ type: MessageType.WELCOME, playerId: connectionId }))
 
   ws.on('message', (raw) => {
     let msg: ClientMessage
@@ -102,8 +124,72 @@ wss.on('connection', (ws) => {
     }
 
     switch (msg.type) {
+      case MessageType.RESUME_SESSION: {
+        const room = roomsByCode.get(msg.roomCode.toUpperCase())
+        if (!room) {
+          ws.send(JSON.stringify({
+            type: MessageType.ERROR,
+            code: 'SESSION_RESUME_FAILED',
+            message: 'Room not found for resume',
+          }))
+          return
+        }
+
+        if (msg.spectator) {
+          if (!room.handleSpectatorReconnect(msg.playerId, ws)) {
+            ws.send(JSON.stringify({
+              type: MessageType.ERROR,
+              code: 'SESSION_RESUME_FAILED',
+              message: 'Spectator session not found',
+            }))
+            return
+          }
+
+          playerRooms.set(msg.playerId, room.roomId)
+          connectionId = msg.playerId
+          ws.send(JSON.stringify({
+            type: MessageType.SESSION_RESUMED,
+            playerId: msg.playerId,
+            roomId: room.roomId,
+            roomCode: room.roomCode,
+            isSpectating: true,
+            opponent: null,
+          }))
+          return
+        }
+
+        if (playerRooms.get(msg.playerId) !== room.roomId || !room.handleReconnect(msg.playerId, ws)) {
+          ws.send(JSON.stringify({
+            type: MessageType.ERROR,
+            code: 'SESSION_RESUME_FAILED',
+            message: 'Player session not found',
+          }))
+          return
+        }
+
+        playerRooms.set(msg.playerId, room.roomId)
+        connectionId = msg.playerId
+        ws.send(JSON.stringify({
+          type: MessageType.SESSION_RESUMED,
+          playerId: msg.playerId,
+          roomId: room.roomId,
+          roomCode: room.roomCode,
+          isSpectating: false,
+          opponent: room.getOpponentInfo(msg.playerId),
+        }))
+        ws.send(JSON.stringify({
+          type: MessageType.GAME_STATE,
+          state: room.getGameState(),
+        }))
+        const lastRoundResult = room.getLastRoundResult()
+        if (lastRoundResult) {
+          ws.send(JSON.stringify(lastRoundResult))
+        }
+        return
+      }
+
       case MessageType.JOIN_QUEUE: {
-        matchQueue.push({ id: playerId, displayName: msg.displayName, ws, difficulty: msg.difficulty })
+        matchQueue.push({ id: connectionId, displayName: msg.displayName, ws, difficulty: msg.difficulty })
         tryMatchmaking()
         break
       }
@@ -112,11 +198,11 @@ wss.on('connection', (ws) => {
         const room = new GameRoom(destroyRoom, msg.difficulty)
         rooms.set(room.roomId, room)
         roomsByCode.set(room.roomCode, room)
-        room.addPlayer(playerId, msg.displayName, ws)
-        playerRooms.set(playerId, room.roomId)
+        room.addPlayer(connectionId, msg.displayName, ws)
+        playerRooms.set(connectionId, room.roomId)
 
         // Send the room code back so the player can share it
-        room.sendTo(playerId, {
+        room.sendTo(connectionId, {
           type: MessageType.MATCH_FOUND,
           opponent: { id: '', displayName: '' },
           roomId: room.roomId,
@@ -146,14 +232,14 @@ wss.on('connection', (ws) => {
           return
         }
 
-        room.addPlayer(playerId, msg.displayName, ws)
-        playerRooms.set(playerId, room.roomId)
+        room.addPlayer(connectionId, msg.displayName, ws)
+        playerRooms.set(connectionId, room.roomId)
 
         // Notify both players
         const players = [...room.players.values()]
-        const opponent = players.find(p => p.id !== playerId)
+        const opponent = players.find(p => p.id !== connectionId)
         if (opponent) {
-          room.sendTo(playerId, {
+          room.sendTo(connectionId, {
             type: MessageType.MATCH_FOUND,
             opponent: { id: opponent.id, displayName: opponent.displayName },
             roomId: room.roomId,
@@ -161,7 +247,7 @@ wss.on('connection', (ws) => {
           })
           room.sendTo(opponent.id, {
             type: MessageType.MATCH_FOUND,
-            opponent: { id: playerId, displayName: msg.displayName },
+            opponent: { id: connectionId, displayName: msg.displayName },
             roomId: room.roomId,
             roomCode: room.roomCode,
           })
@@ -174,38 +260,51 @@ wss.on('connection', (ws) => {
       }
 
       case MessageType.KEYSTROKE: {
-        const roomId = playerRooms.get(playerId)
+        const roomId = playerRooms.get(connectionId)
         if (!roomId) return
         const room = rooms.get(roomId)
         if (!room) return
-        room.handleKeystroke(playerId, msg)
+        room.handleKeystroke(connectionId, msg)
         break
       }
 
       case MessageType.USE_ABILITY: {
-        const abilityRoomId = playerRooms.get(playerId)
+        const abilityRoomId = playerRooms.get(connectionId)
         if (!abilityRoomId) return
         const abilityRoom = rooms.get(abilityRoomId)
         if (!abilityRoom) return
-        abilityRoom.handleAbility(playerId, msg)
+        abilityRoom.handleAbility(connectionId, msg)
         break
       }
 
       case MessageType.REMATCH: {
-        const rematchRoomId = playerRooms.get(playerId)
+        const rematchRoomId = playerRooms.get(connectionId)
         if (!rematchRoomId) return
         const rematchRoom = rooms.get(rematchRoomId)
         if (!rematchRoom) return
-        rematchRoom.handleRematch(playerId)
+        rematchRoom.handleRematch(connectionId)
+        break
+      }
+
+      case MessageType.LEAVE_ROOM: {
+        const leaveRoomId = playerRooms.get(connectionId)
+        if (!leaveRoomId) return
+        const leaveRoom = rooms.get(leaveRoomId)
+        if (!leaveRoom) {
+          playerRooms.delete(connectionId)
+          return
+        }
+        leaveRoom.handleLeave(connectionId)
+        playerRooms.delete(connectionId)
         break
       }
 
       case MessageType.TAUNT: {
-        const tauntRoomId = playerRooms.get(playerId)
+        const tauntRoomId = playerRooms.get(connectionId)
         if (!tauntRoomId) return
         const tauntRoom = rooms.get(tauntRoomId)
         if (!tauntRoom) return
-        tauntRoom.handleTaunt(playerId, msg)
+        tauntRoom.handleTaunt(connectionId, msg)
         break
       }
 
@@ -219,8 +318,8 @@ wss.on('connection', (ws) => {
           }))
           return
         }
-        room.addSpectator(playerId, ws)
-        playerRooms.set(playerId, room.roomId)
+        room.addSpectator(connectionId, ws)
+        playerRooms.set(connectionId, room.roomId)
         break
       }
     }
@@ -228,23 +327,17 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     // Remove from queue
-    const idx = matchQueue.findIndex(p => p.id === playerId)
+    const idx = matchQueue.findIndex(p => p.id === connectionId)
     if (idx !== -1) matchQueue.splice(idx, 1)
 
-    // Handle disconnect with grace period
-    const roomId = playerRooms.get(playerId)
+    // Handle disconnect with grace period (players and spectators)
+    const roomId = playerRooms.get(connectionId)
     if (roomId) {
       const room = rooms.get(roomId)
       if (room) {
-        // Check if spectator
-        if (room.spectators.has(playerId)) {
-          room.removeSpectator(playerId)
-          playerRooms.delete(playerId)
-        } else {
-          room.handleDisconnect(playerId)
-        }
+        room.handleDisconnect(connectionId)
       } else {
-        playerRooms.delete(playerId)
+        playerRooms.delete(connectionId)
       }
     }
   })

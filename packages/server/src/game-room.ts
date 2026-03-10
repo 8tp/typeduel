@@ -5,10 +5,11 @@ import {
   type PlayerState,
   type ActiveEffect,
   type ServerMessage,
+  type RoundEndMessage,
+  type PlayerInfo,
   type KeystrokeMessage,
   type UseAbilityMessage,
   type TauntMessage,
-  type SpectateRoomMessage,
   MessageType,
   AbilityId,
   ABILITY_CONFIGS,
@@ -21,6 +22,8 @@ import {
 } from '@typeduel/shared'
 import { getRandomPassage } from './text-corpus.js'
 import { generateRoomCode, getAccuracyMultiplier as getAccMult } from './formulas.js'
+
+const disconnectGracePeriodMs = Number(process.env.DISCONNECT_GRACE_MS ?? DISCONNECT_GRACE_MS)
 
 interface Keystroke {
   char: string
@@ -47,6 +50,7 @@ export class GameRoom {
   roomId: string
   roomCode: string
   status: 'waiting' | 'countdown' | 'active' | 'finished' = 'waiting'
+  countdownSeconds: number = 0
   text: string = ''
   timeLeft: number = ROUND_DURATION
   players: Map<string, ServerPlayerState> = new Map()
@@ -59,6 +63,7 @@ export class GameRoom {
   private disconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
   private rematchVotes: Set<string> = new Set()
   private onDestroy: (roomId: string) => void
+  private lastRoundResult: RoundEndMessage | null = null
   difficulty?: 'easy' | 'medium' | 'hard'
 
   constructor(onDestroy: (roomId: string) => void, difficulty?: 'easy' | 'medium' | 'hard') {
@@ -112,6 +117,7 @@ export class GameRoom {
     this.text = passage.text
 
     let count = 3
+    this.countdownSeconds = count
     this.broadcast({
       type: MessageType.COUNTDOWN,
       seconds: count,
@@ -119,6 +125,7 @@ export class GameRoom {
 
     const tick = () => {
       count--
+      this.countdownSeconds = count
       if (count > 0) {
         this.broadcast({
           type: MessageType.COUNTDOWN,
@@ -134,6 +141,7 @@ export class GameRoom {
 
   private startRound(): void {
     this.status = 'active'
+    this.countdownSeconds = 0
     this.timeLeft = ROUND_DURATION
 
     const now = Date.now()
@@ -230,6 +238,16 @@ export class GameRoom {
     if (char === 'BACKSPACE') {
       if (player.cursor > 0) {
         player.cursor--
+        player.totalCorrect = Math.max(0, player.totalCorrect - 1)
+        player.consecutiveCorrect = 0
+        player.accuracy = player.totalKeystrokes > 0
+          ? (player.totalCorrect / player.totalKeystrokes) * 100
+          : 100
+
+        const elapsedMinutes = (Date.now() - player.startTime) / 60000
+        player.wpm = elapsedMinutes > 0
+          ? Math.round((player.totalCorrect / 5) / elapsedMinutes)
+          : 0
       }
       return
     }
@@ -391,6 +409,7 @@ export class GameRoom {
 
   private endRound(): void {
     this.status = 'finished'
+    this.countdownSeconds = 0
     this.cleanup()
 
     // Determine winner (highest HP, tiebreak by WPM)
@@ -414,11 +433,13 @@ export class GameRoom {
       }
     }
 
-    this.broadcast({
+    this.lastRoundResult = {
       type: MessageType.ROUND_END,
       winner: winner?.id ?? '',
       stats,
-    })
+    }
+
+    this.broadcast(this.lastRoundResult)
 
     // Destroy room after a delay (unless rematch)
     this.destroyTimer = setTimeout(() => {
@@ -441,12 +462,23 @@ export class GameRoom {
     }
     return {
       roomId: this.roomId,
+      roomCode: this.roomCode,
       status: this.status,
+      countdownSeconds: this.countdownSeconds,
       text: this.text,
       timeLeft: this.timeLeft,
       players,
       spectatorCount: this.spectators.size,
     }
+  }
+
+  getOpponentInfo(playerId: string): PlayerInfo | null {
+    const opponent = [...this.players.values()].find((player) => player.id !== playerId)
+    return opponent ? { id: opponent.id, displayName: opponent.displayName } : null
+  }
+
+  getLastRoundResult(): RoundEndMessage | null {
+    return this.lastRoundResult
   }
 
   private toPlayerState(p: ServerPlayerState): PlayerState {
@@ -509,35 +541,86 @@ export class GameRoom {
   }
 
   handleDisconnect(playerId: string): void {
-    if (this.status === 'active') {
-      // Start grace period — if they don't reconnect, opponent wins
+    // Spectators are removed immediately — no grace period
+    if (this.spectators.has(playerId)) {
+      // Keep spectator entry for resume window, just mark ws as stale
       const timer = setTimeout(() => {
         this.disconnectTimers.delete(playerId)
-        // Player didn't reconnect — end round, opponent wins
+        this.spectators.delete(playerId)
+      }, disconnectGracePeriodMs)
+      this.disconnectTimers.set(playerId, timer)
+      return
+    }
+
+    if (this.status === 'active') {
+      // Grace period — if they don't reconnect, opponent wins
+      const timer = setTimeout(() => {
+        this.disconnectTimers.delete(playerId)
         const player = this.players.get(playerId)
         if (player) {
           player.hp = 0
           this.endRound()
         }
-      }, DISCONNECT_GRACE_MS)
+      }, disconnectGracePeriodMs)
+      this.disconnectTimers.set(playerId, timer)
+    } else if (this.status === 'countdown' || this.status === 'finished') {
+      // Grace period for countdown and results — allow reconnect
+      const timer = setTimeout(() => {
+        this.disconnectTimers.delete(playerId)
+        this.removePlayer(playerId)
+      }, disconnectGracePeriodMs)
       this.disconnectTimers.set(playerId, timer)
     } else {
+      // waiting — remove immediately
       this.removePlayer(playerId)
     }
   }
 
-  handleReconnect(playerId: string, ws: WebSocket): boolean {
-    const player = this.players.get(playerId)
-    if (!player) return false
+  handleLeave(playerId: string): void {
+    if (this.spectators.has(playerId)) {
+      this.removeSpectator(playerId)
+      return
+    }
 
-    // Clear disconnect timer
+    if (this.status === 'active') {
+      const player = this.players.get(playerId)
+      if (player) {
+        player.hp = 0
+        this.endRound()
+      }
+      return
+    }
+
+    this.removePlayer(playerId)
+  }
+
+  handleReconnect(playerId: string, ws: WebSocket): boolean {
+    // Clear disconnect timer regardless
     const timer = this.disconnectTimers.get(playerId)
     if (timer) {
       clearTimeout(timer)
       this.disconnectTimers.delete(playerId)
     }
 
-    player.ws = ws
+    const player = this.players.get(playerId)
+    if (player) {
+      player.ws = ws
+      return true
+    }
+
+    return false
+  }
+
+  handleSpectatorReconnect(spectatorId: string, ws: WebSocket): boolean {
+    // Clear disconnect timer
+    const timer = this.disconnectTimers.get(spectatorId)
+    if (timer) {
+      clearTimeout(timer)
+      this.disconnectTimers.delete(spectatorId)
+    }
+
+    if (!this.spectators.has(spectatorId)) return false
+    this.spectators.set(spectatorId, ws)
     return true
   }
 
@@ -564,8 +647,10 @@ export class GameRoom {
       }
       this.rematchVotes.clear()
       this.status = 'waiting'
+      this.countdownSeconds = 0
       this.text = ''
       this.timeLeft = ROUND_DURATION
+      this.lastRoundResult = null
 
       for (const player of this.players.values()) {
         player.hp = MAX_HP
