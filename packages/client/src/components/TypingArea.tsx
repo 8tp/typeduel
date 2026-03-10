@@ -17,23 +17,43 @@ function useScramble(text: string, cursor: number, active: boolean): string {
       setScrambled(text)
       return
     }
-    // Scramble upcoming characters (next ~50 chars after cursor)
+    // Scramble 1-2 letters per word (skip words with 2 or fewer chars)
     const scrambleText = () => {
       const chars = text.split('')
-      const start = cursor
-      const end = Math.min(cursor + 50, chars.length)
-      for (let i = start; i < end; i++) {
-        if (chars[i] !== ' ') {
-          // Replace with random printable char
-          const pool = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%'
-          chars[i] = pool[Math.floor(Math.random() * pool.length)]
+      const upcoming = text.slice(cursor, cursor + 80)
+      // Find word boundaries in the upcoming text
+      const words = upcoming.match(/\S+/g) || []
+      let offset = cursor
+      for (const word of words) {
+        const wordStart = text.indexOf(word, offset)
+        if (wordStart === -1) continue
+        offset = wordStart + word.length
+
+        // Skip short words (1-2 chars)
+        if (word.length <= 2) continue
+
+        // Pick 1-2 random positions within this word to swap
+        const swapCount = word.length >= 5 ? 2 : 1
+        const positions = new Set<number>()
+        while (positions.size < swapCount) {
+          positions.add(Math.floor(Math.random() * word.length))
+        }
+        const pool = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%'
+        for (const pos of positions) {
+          const charIdx = wordStart + pos
+          // Replace with a random letter (not the same one)
+          let replacement = pool[Math.floor(Math.random() * pool.length)]
+          while (replacement === chars[charIdx]) {
+            replacement = pool[Math.floor(Math.random() * pool.length)]
+          }
+          chars[charIdx] = replacement
         }
       }
       setScrambled(chars.join(''))
     }
 
     scrambleText()
-    const interval = setInterval(scrambleText, 100) // Re-scramble every 100ms for glitch effect
+    const interval = setInterval(scrambleText, 150)
     return () => clearInterval(interval)
   }, [active, text, cursor])
 
