@@ -10,7 +10,7 @@ import {
   WPM_DIFF_SCALE,
   TEXT_EXHAUST_BONUS,
   PASSAGES,
-  getRandomPassage,
+  ROUND_DURATION,
 } from '@typeduel/shared'
 import { sfx } from '../audio'
 
@@ -19,14 +19,14 @@ export type PracticeMode = 'free' | 'timed' | 'accuracy' | 'bot'
 export interface PracticeConfig {
   mode: PracticeMode
   difficulty: Difficulty
-  duration: number // seconds (for timed/bot mode: 15, 30, 60, 120)
+  duration: number // seconds (for timed mode: 15, 30, 60, 120)
   botDifficulty: 'easy' | 'medium' | 'hard'
 }
 
 const BOT_PRESETS = {
-  easy: { wpm: 30, accuracy: 0.90, abilityChance: 0.02 },
-  medium: { wpm: 60, accuracy: 0.95, abilityChance: 0.05 },
-  hard: { wpm: 100, accuracy: 0.98, abilityChance: 0.08 },
+  easy: { wpmBase: 30, wpmVariance: 8, accuracy: 0.90, abilityChance: 0.02 },
+  medium: { wpmBase: 60, wpmVariance: 12, accuracy: 0.95, abilityChance: 0.05 },
+  hard: { wpmBase: 100, wpmVariance: 15, accuracy: 0.98, abilityChance: 0.08 },
 }
 
 export interface PracticeState {
@@ -57,6 +57,8 @@ export interface PracticeState {
   botEnergy: number
   botActiveEffects: ActiveEffect[]
   botDamageDealt: number
+  botAbilitiesUsed: number
+  botWpmHistory: number[]
   countdownSeconds: number
 }
 
@@ -89,7 +91,7 @@ export function createInitialState(config: PracticeConfig): PracticeState {
   const isBot = config.mode === 'bot'
   const isTimed = config.mode === 'timed' || isBot
   // For timed modes, use enough text for fast typers (~200 WPM = ~1000 chars/min)
-  const minLength = isTimed ? Math.max(500, config.duration * 20) : 300
+  const minLength = isTimed ? Math.max(500, (isBot ? ROUND_DURATION : config.duration) * 20) : 300
   const text = getText(config.difficulty, minLength)
   const preset = BOT_PRESETS[config.botDifficulty]
 
@@ -105,7 +107,7 @@ export function createInitialState(config: PracticeConfig): PracticeState {
     maxStreak: 0,
     startTime: 0,
     timeElapsed: 0,
-    timeLeft: isTimed ? config.duration : 0,
+    timeLeft: isBot ? ROUND_DURATION : (isTimed ? config.duration : 0),
     wpmHistory: [],
     errorIndex: null,
     playerHp: MAX_HP,
@@ -115,11 +117,13 @@ export function createInitialState(config: PracticeConfig): PracticeState {
     playerAbilitiesUsed: 0,
     botCursor: 0,
     botHp: MAX_HP,
-    botWpm: isBot ? preset.wpm : 0,
+    botWpm: isBot ? preset.wpmBase : 0,
     botAccuracy: isBot ? preset.accuracy * 100 : 100,
     botEnergy: 0,
     botActiveEffects: [],
     botDamageDealt: 0,
+    botAbilitiesUsed: 0,
+    botWpmHistory: [],
     countdownSeconds: 3,
   }
 }
@@ -129,15 +133,23 @@ export class PracticeEngine {
   config: PracticeConfig
   private tickInterval: ReturnType<typeof setInterval> | null = null
   private botInterval: ReturnType<typeof setInterval> | null = null
+  private botSpeedUpdateInterval: ReturnType<typeof setInterval> | null = null
   private countdownTimer: ReturnType<typeof setTimeout> | null = null
   private onChange: (state: PracticeState) => void
   private botPreset: typeof BOT_PRESETS['easy']
+  private botCurrentWpm: number
+  private botTargetWpm: number
+  private botTotalCorrect: number = 0
+  private botTotalKeystrokes: number = 0
 
   constructor(config: PracticeConfig, onChange: (state: PracticeState) => void) {
     this.config = config
     this.state = createInitialState(config)
     this.onChange = onChange
     this.botPreset = BOT_PRESETS[config.botDifficulty]
+    // Start bot WPM at a natural ramp-up speed (lower than target)
+    this.botCurrentWpm = this.botPreset.wpmBase * 0.6
+    this.botTargetWpm = this.botPreset.wpmBase
   }
 
   start(): void {
@@ -172,7 +184,47 @@ export class PracticeEngine {
 
     // Bot typing interval (if bot mode)
     if (this.config.mode === 'bot') {
-      const msPerChar = 60000 / (this.botPreset.wpm * 5)
+      this.updateBotTypingSpeed()
+
+      // Periodically vary bot WPM to feel human-like
+      this.botSpeedUpdateInterval = setInterval(() => {
+        this.updateBotTarget()
+        this.updateBotTypingSpeed()
+      }, 2000 + Math.random() * 2000) // Every 2-4 seconds
+    }
+  }
+
+  private updateBotTarget(): void {
+    // Vary bot target WPM naturally (+/- variance from base)
+    const variance = this.botPreset.wpmVariance
+    this.botTargetWpm = this.botPreset.wpmBase + (Math.random() * 2 - 1) * variance
+
+    // If bot has scramble effect, slow down significantly
+    if (this.state.botActiveEffects.some(e => e.abilityId === AbilityId.SCRAMBLE)) {
+      this.botTargetWpm *= 0.5
+    }
+    // If bot has phantom keys, slow down a bit (confusion)
+    if (this.state.botActiveEffects.some(e => e.abilityId === AbilityId.PHANTOM_KEYS)) {
+      this.botTargetWpm *= 0.7
+    }
+    // If bot has blackout, moderate slowdown
+    if (this.state.botActiveEffects.some(e => e.abilityId === AbilityId.BLACKOUT)) {
+      this.botTargetWpm *= 0.8
+    }
+  }
+
+  private updateBotTypingSpeed(): void {
+    // Smoothly approach target WPM
+    this.botCurrentWpm += (this.botTargetWpm - this.botCurrentWpm) * 0.3
+
+    // Clear existing bot interval
+    if (this.botInterval) {
+      clearInterval(this.botInterval)
+      this.botInterval = null
+    }
+
+    if (this.botCurrentWpm > 5) {
+      const msPerChar = 60000 / (this.botCurrentWpm * 5)
       this.botInterval = setInterval(() => this.botType(), msPerChar)
     }
   }
@@ -212,7 +264,6 @@ export class PracticeEngine {
         s.playerEnergy = Math.min(MAX_ENERGY, s.playerEnergy + 5)
       }
 
-      // Accuracy challenge: game over if not perfect is handled in the mode check
       // Check text exhaustion (for free mode)
       if (this.config.mode === 'free' && s.cursor >= s.text.length) {
         this.finishRound()
@@ -284,12 +335,35 @@ export class PracticeEngine {
     const isFrozen = s.botActiveEffects.some(e => e.abilityId === AbilityId.FREEZE)
     if (isFrozen) return
 
-    // Bot types with configured accuracy
-    const isCorrect = Math.random() < this.botPreset.accuracy
+    this.botTotalKeystrokes++
+
+    // Bot types with configured accuracy (affected by effects)
+    let accuracy = this.botPreset.accuracy
+    // Scramble reduces bot accuracy
+    if (s.botActiveEffects.some(e => e.abilityId === AbilityId.SCRAMBLE)) {
+      accuracy *= 0.7
+    }
+    // Phantom keys cause more errors
+    if (s.botActiveEffects.some(e => e.abilityId === AbilityId.PHANTOM_KEYS)) {
+      accuracy *= 0.85
+    }
+
+    const isCorrect = Math.random() < accuracy
     if (isCorrect) {
       s.botCursor++
+      this.botTotalCorrect++
     }
-    // Bot doesn't actually need to track errors for WPM — use configured WPM
+
+    // Update bot accuracy display
+    s.botAccuracy = this.botTotalKeystrokes > 0
+      ? (this.botTotalCorrect / this.botTotalKeystrokes) * 100
+      : 100
+
+    // Update bot WPM from actual cursor position
+    const elapsed = (Date.now() - s.startTime) / 60000
+    if (elapsed > 0) {
+      s.botWpm = Math.round((this.botTotalCorrect / 5) / elapsed)
+    }
 
     // Bot energy accrual
     s.botEnergy = Math.min(MAX_ENERGY, s.botEnergy + 0.4)
@@ -304,13 +378,8 @@ export class PracticeEngine {
 
   private botUseAbility(): void {
     const s = this.state
-    const now = Date.now()
 
-    // Pick a random offensive ability the bot can afford
-    const offensive = [AbilityId.SCRAMBLE, AbilityId.BLACKOUT, AbilityId.FREEZE, AbilityId.PHANTOM_KEYS]
-    const defensive = [AbilityId.SURGE, AbilityId.MIRROR]
-    const all = [...offensive, ...defensive]
-
+    const all = Object.values(AbilityId)
     const affordable = all.filter(id => {
       const config = ABILITY_CONFIGS[id]
       if (s.botEnergy < config.cost) return false
@@ -324,13 +393,14 @@ export class PracticeEngine {
     const abilityId = affordable[Math.floor(Math.random() * affordable.length)]
     const config = ABILITY_CONFIGS[abilityId]
     s.botEnergy -= config.cost
+    s.botAbilitiesUsed++
 
     const isSelf = abilityId === AbilityId.SURGE || abilityId === AbilityId.MIRROR
     const target = isSelf ? s.botActiveEffects : s.playerActiveEffects
 
     target.push({
       abilityId,
-      expiresAt: now + config.duration,
+      expiresAt: Date.now() + config.duration,
       source: 'bot',
     })
 
@@ -388,6 +458,9 @@ export class PracticeEngine {
 
     if (this.config.mode === 'bot') {
       s.timeLeft--
+
+      // Bot WPM history
+      s.botWpmHistory.push(s.botWpm)
 
       // Energy accrual for player
       const recentlyTyped = s.streak > 0 || s.totalKeystrokes > 0
@@ -468,6 +541,7 @@ export class PracticeEngine {
   cleanup(): void {
     if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null }
     if (this.botInterval) { clearInterval(this.botInterval); this.botInterval = null }
+    if (this.botSpeedUpdateInterval) { clearInterval(this.botSpeedUpdateInterval); this.botSpeedUpdateInterval = null }
     if (this.countdownTimer) { clearTimeout(this.countdownTimer); this.countdownTimer = null }
   }
 }

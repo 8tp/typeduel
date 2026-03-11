@@ -1,7 +1,10 @@
 // Synthesized sound effects using Web Audio API — no external files needed
-// Respects the soundEnabled flag from localStorage (checked at play time)
+// Supports multiple keystroke sound presets (thock, clack, click, typewriter)
 
 let ctx: AudioContext | null = null
+let noiseBuffer: AudioBuffer | null = null
+
+export type SoundPreset = 'thock' | 'clack' | 'click' | 'typewriter' | 'silent'
 
 function isMuted(): boolean {
   return localStorage.getItem('typeduel_sound') === 'false'
@@ -13,9 +16,26 @@ function getVolumeMultiplier(): number {
   return vol / 100
 }
 
+function getSoundPreset(): SoundPreset {
+  return (localStorage.getItem('typeduel_soundPreset') as SoundPreset) || 'thock'
+}
+
 function getCtx(): AudioContext {
   if (!ctx) ctx = new AudioContext()
   return ctx
+}
+
+function getNoiseBuffer(): AudioBuffer {
+  const c = getCtx()
+  if (!noiseBuffer) {
+    const size = c.sampleRate * 0.1 // 100ms of noise
+    noiseBuffer = c.createBuffer(1, size, c.sampleRate)
+    const data = noiseBuffer.getChannelData(0)
+    for (let i = 0; i < size; i++) {
+      data[i] = Math.random() * 2 - 1
+    }
+  }
+  return noiseBuffer
 }
 
 function playTone(
@@ -40,23 +60,144 @@ function playTone(
   osc.stop(c.currentTime + duration)
 }
 
-function playNoise(duration: number, volume = 0.08) {
+function playNoise(duration: number, volume = 0.08, filterFreq?: number, filterQ?: number) {
   const c = getCtx()
-  const bufferSize = c.sampleRate * duration
-  const buffer = c.createBuffer(1, bufferSize, c.sampleRate)
-  const data = buffer.getChannelData(0)
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = Math.random() * 2 - 1
-  }
   const source = c.createBufferSource()
-  source.buffer = buffer
+  source.buffer = getNoiseBuffer()
   const gain = c.createGain()
   const vol = volume * getVolumeMultiplier()
   gain.gain.setValueAtTime(vol, c.currentTime)
   gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration)
-  source.connect(gain)
+
+  if (filterFreq) {
+    const filter = c.createBiquadFilter()
+    filter.type = 'bandpass'
+    filter.frequency.value = filterFreq
+    filter.Q.value = filterQ ?? 0.7
+    source.connect(filter)
+    filter.connect(gain)
+  } else {
+    source.connect(gain)
+  }
   gain.connect(c.destination)
   source.start()
+  source.stop(c.currentTime + duration)
+}
+
+// Layered mechanical keyboard sound with frequency sweep
+function playMechKey(preset: SoundPreset) {
+  const c = getCtx()
+  const now = c.currentTime
+  const volMul = getVolumeMultiplier()
+
+  // Slight random variation per keypress for realism
+  const variation = 0.85 + Math.random() * 0.3
+
+  if (preset === 'thock') {
+    // Layer 1: Low-frequency thump (body)
+    const bodyOsc = c.createOscillator()
+    const bodyGain = c.createGain()
+    bodyOsc.type = 'triangle'
+    bodyOsc.frequency.setValueAtTime((120 + Math.random() * 40) * variation, now)
+    bodyOsc.frequency.exponentialRampToValueAtTime(35, now + 0.1)
+    bodyGain.gain.setValueAtTime(0.35 * volMul, now)
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+    bodyOsc.connect(bodyGain)
+    bodyGain.connect(c.destination)
+    bodyOsc.start(now)
+    bodyOsc.stop(now + 0.1)
+
+    // Layer 2: Click transient (soft)
+    const clickOsc = c.createOscillator()
+    const clickGain = c.createGain()
+    clickOsc.type = 'square'
+    clickOsc.frequency.setValueAtTime(800 * variation, now)
+    clickOsc.frequency.exponentialRampToValueAtTime(300, now + 0.025)
+    clickGain.gain.setValueAtTime(0.08 * volMul, now)
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025)
+    clickOsc.connect(clickGain)
+    clickGain.connect(c.destination)
+    clickOsc.start(now)
+    clickOsc.stop(now + 0.025)
+
+    // Layer 3: Filtered noise (warm texture)
+    playNoise(0.04, 0.06, 1500, 0.8)
+
+  } else if (preset === 'clack') {
+    // Layer 1: Mid-frequency body
+    const bodyOsc = c.createOscillator()
+    const bodyGain = c.createGain()
+    bodyOsc.type = 'triangle'
+    bodyOsc.frequency.setValueAtTime((250 + Math.random() * 80) * variation, now)
+    bodyOsc.frequency.exponentialRampToValueAtTime(70, now + 0.06)
+    bodyGain.gain.setValueAtTime(0.22 * volMul, now)
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06)
+    bodyOsc.connect(bodyGain)
+    bodyGain.connect(c.destination)
+    bodyOsc.start(now)
+    bodyOsc.stop(now + 0.06)
+
+    // Layer 2: Sharp click transient
+    const clickOsc = c.createOscillator()
+    const clickGain = c.createGain()
+    clickOsc.type = 'square'
+    clickOsc.frequency.setValueAtTime(1800 * variation, now)
+    clickOsc.frequency.exponentialRampToValueAtTime(500, now + 0.02)
+    clickGain.gain.setValueAtTime(0.25 * volMul, now)
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02)
+    clickOsc.connect(clickGain)
+    clickGain.connect(c.destination)
+    clickOsc.start(now)
+    clickOsc.stop(now + 0.02)
+
+    // Layer 3: High-freq noise burst
+    playNoise(0.025, 0.15, 5000, 0.9)
+
+  } else if (preset === 'click') {
+    // Minimal: just a sharp click
+    const clickOsc = c.createOscillator()
+    const clickGain = c.createGain()
+    clickOsc.type = 'square'
+    clickOsc.frequency.setValueAtTime((3000 + Math.random() * 500) * variation, now)
+    clickOsc.frequency.exponentialRampToValueAtTime(800, now + 0.015)
+    clickGain.gain.setValueAtTime(0.18 * volMul, now)
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015)
+    clickOsc.connect(clickGain)
+    clickGain.connect(c.destination)
+    clickOsc.start(now)
+    clickOsc.stop(now + 0.015)
+
+    // Tiny noise snap
+    playNoise(0.012, 0.12, 7000, 1.2)
+
+  } else if (preset === 'typewriter') {
+    // Typewriter: metallic clunk + spring sound
+    const bodyOsc = c.createOscillator()
+    const bodyGain = c.createGain()
+    bodyOsc.type = 'sawtooth'
+    bodyOsc.frequency.setValueAtTime((400 + Math.random() * 100) * variation, now)
+    bodyOsc.frequency.exponentialRampToValueAtTime(100, now + 0.04)
+    bodyGain.gain.setValueAtTime(0.15 * volMul, now)
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04)
+    bodyOsc.connect(bodyGain)
+    bodyGain.connect(c.destination)
+    bodyOsc.start(now)
+    bodyOsc.stop(now + 0.04)
+
+    // Metallic ring
+    const ringOsc = c.createOscillator()
+    const ringGain = c.createGain()
+    ringOsc.type = 'sine'
+    ringOsc.frequency.setValueAtTime(2200 * variation, now)
+    ringGain.gain.setValueAtTime(0.06 * volMul, now)
+    ringGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06)
+    ringOsc.connect(ringGain)
+    ringGain.connect(c.destination)
+    ringOsc.start(now)
+    ringOsc.stop(now + 0.06)
+
+    playNoise(0.02, 0.1, 3000, 1.0)
+  }
 }
 
 function play(fn: () => void) {
@@ -65,11 +206,24 @@ function play(fn: () => void) {
 
 export const sfx = {
   keystroke() {
-    play(() => playTone(800 + Math.random() * 200, 0.04, 'square', 0.06))
+    play(() => {
+      const preset = getSoundPreset()
+      if (preset === 'silent') return
+      playMechKey(preset)
+    })
   },
 
   keystrokeError() {
-    play(() => playTone(200, 0.1, 'sawtooth', 0.08))
+    play(() => {
+      const preset = getSoundPreset()
+      if (preset === 'silent') {
+        playTone(200, 0.08, 'sawtooth', 0.06)
+        return
+      }
+      // Play the key sound but add a low buzz to indicate error
+      playMechKey(preset)
+      playTone(150, 0.08, 'sawtooth', 0.06)
+    })
   },
 
   damage() {

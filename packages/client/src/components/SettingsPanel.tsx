@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { Difficulty } from '@typeduel/shared'
 import { useGameStore } from '../store'
+import { sfx, type SoundPreset } from '../audio'
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: () => void }) {
   return (
@@ -19,6 +20,14 @@ const DIFFICULTIES: { value: Difficulty; label: string }[] = [
   { value: 'hard', label: 'Hard' },
 ]
 
+const SOUND_PRESETS: { value: SoundPreset; label: string }[] = [
+  { value: 'thock', label: 'Thock' },
+  { value: 'clack', label: 'Clack' },
+  { value: 'click', label: 'Click' },
+  { value: 'typewriter', label: 'Typewriter' },
+  { value: 'silent', label: 'Silent' },
+]
+
 const UI_SCALES: { value: 'small' | 'medium' | 'large'; label: string }[] = [
   { value: 'small', label: 'Small' },
   { value: 'medium', label: 'Medium' },
@@ -33,6 +42,7 @@ export function SettingsPanel() {
     highContrast, toggleHighContrast,
     soundEnabled, toggleSound,
     soundVolume, setSoundVolume,
+    soundPreset, setSoundPreset,
     defaultDifficulty, setDefaultDifficulty,
     showCombatLog, toggleCombatLog,
     setSettingsOpen,
@@ -101,20 +111,45 @@ export function SettingsPanel() {
           <Toggle label="Sound Effects" value={soundEnabled} onChange={toggleSound} />
 
           {soundEnabled && (
-            <div className="py-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-text/60 text-sm">Volume</span>
-                <span className="text-text/40 text-xs tabular-nums">{soundVolume}%</span>
+            <>
+              <div className="py-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-text/60 text-sm">Volume</span>
+                  <span className="text-text/40 text-xs tabular-nums">{soundVolume}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={soundVolume}
+                  onChange={(e) => setSoundVolume(Number(e.target.value))}
+                  className="w-full accent-accent"
+                />
               </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={soundVolume}
-                onChange={(e) => setSoundVolume(Number(e.target.value))}
-                className="w-full accent-accent"
-              />
-            </div>
+
+              <div className="py-2">
+                <span className="text-text/60 text-sm block mb-2">Key Sound</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {SOUND_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => {
+                        setSoundPreset(p.value)
+                        // Play a preview
+                        sfx.keystroke()
+                      }}
+                      className={`px-3 py-1.5 rounded border text-xs font-bold transition-colors ${
+                        soundPreset === p.value
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-border text-text/40 hover:border-text/30'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
 

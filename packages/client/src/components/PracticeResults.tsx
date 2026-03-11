@@ -110,7 +110,7 @@ export function PracticeResults() {
           {/* Bot stats */}
           {isBot && (
             <div className="p-4 rounded border border-border results-card results-card-2">
-              <div className="text-sm text-text/40 mb-3 uppercase tracking-wider">Bot</div>
+              <div className="text-sm text-text/40 mb-3 uppercase tracking-wider">Bot ({practiceConfig.botDifficulty})</div>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-text/60">WPM</span>
@@ -128,7 +128,17 @@ export function PracticeResults() {
                   <span className="text-text/60">HP Remaining</span>
                   <span className="font-bold">{Math.round(practiceState.botHp)}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-text/60">Abilities Used</span>
+                  <span className="font-bold">{practiceState.botAbilitiesUsed}</span>
+                </div>
               </div>
+              {practiceState.botWpmHistory.length >= 2 && (
+                <div className="mt-3">
+                  <div className="text-[10px] text-text/30 uppercase">WPM Over Time</div>
+                  <WpmChart data={practiceState.botWpmHistory} height={56} />
+                </div>
+              )}
             </div>
           )}
         </div>

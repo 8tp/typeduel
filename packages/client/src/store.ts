@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { GameState, AbilityId, TauntId, Difficulty } from '@typeduel/shared'
-import { sfx } from './audio'
+import { sfx, type SoundPreset } from './audio'
 
 import type { PracticeConfig, PracticeState } from './practice/engine'
 
@@ -84,6 +84,7 @@ interface GameStore {
   uiScale: 'small' | 'medium' | 'large'
   reducedMotion: boolean
   soundVolume: number
+  soundPreset: SoundPreset
   defaultDifficulty: Difficulty
   showCombatLog: boolean
   highContrast: boolean
@@ -123,6 +124,7 @@ interface GameStore {
   setUiScale: (scale: 'small' | 'medium' | 'large') => void
   toggleReducedMotion: () => void
   setSoundVolume: (vol: number) => void
+  setSoundPreset: (preset: SoundPreset) => void
   setDefaultDifficulty: (d: Difficulty) => void
   toggleCombatLog: () => void
   toggleHighContrast: () => void
@@ -157,6 +159,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   uiScale: (localStorage.getItem('typeduel_uiScale') as 'small' | 'medium' | 'large') || 'medium',
   reducedMotion: localStorage.getItem('typeduel_reducedMotion') === 'true',
   soundVolume: Number(localStorage.getItem('typeduel_volume') ?? '75'),
+  soundPreset: (localStorage.getItem('typeduel_soundPreset') as SoundPreset) || 'thock',
   defaultDifficulty: (localStorage.getItem('typeduel_defaultDifficulty') as Difficulty) || 'medium',
   showCombatLog: localStorage.getItem('typeduel_showCombatLog') !== 'false',
   highContrast: localStorage.getItem('typeduel_highContrast') === 'true',
@@ -254,6 +257,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setSoundVolume: (vol) => {
     localStorage.setItem('typeduel_volume', String(vol))
     set({ soundVolume: vol })
+  },
+  setSoundPreset: (preset) => {
+    localStorage.setItem('typeduel_soundPreset', preset)
+    set({ soundPreset: preset })
   },
   setDefaultDifficulty: (d) => {
     localStorage.setItem('typeduel_defaultDifficulty', d)

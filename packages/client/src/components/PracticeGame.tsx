@@ -1,16 +1,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { AbilityId } from '@typeduel/shared'
 import { useGameStore } from '../store'
 import { sfx } from '../audio'
 import { PracticeEngine, type PracticeState, type PracticeConfig } from '../practice/engine'
 import { TypingArea } from './TypingArea'
 import { EffectOverlays } from './EffectOverlays'
 import { AbilityBar } from './AbilityBar'
-
-const ABILITY_HOTKEYS: AbilityId[] = [
-  AbilityId.SURGE, AbilityId.BLACKOUT, AbilityId.SCRAMBLE,
-  AbilityId.PHANTOM_KEYS, AbilityId.FREEZE, AbilityId.MIRROR,
-]
 
 export function PracticeGame() {
   const config = useGameStore(s => s.practiceConfig)
@@ -37,15 +31,6 @@ export function PracticeGame() {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const engine = engineRef.current
     if (!engine || !state || state.status !== 'active') return
-
-    // Ctrl+[1-6] → ability hotkeys (bot mode only)
-    if (config?.mode === 'bot' && e.ctrlKey && e.key >= '1' && e.key <= '6') {
-      e.preventDefault()
-      const idx = parseInt(e.key) - 1
-      const abilityId = ABILITY_HOTKEYS[idx]
-      if (abilityId) engine.handleAbility(abilityId)
-      return
-    }
 
     if (e.key === 'Backspace' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
       e.preventDefault()
