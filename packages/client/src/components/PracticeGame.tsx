@@ -68,7 +68,9 @@ export function PracticeGame() {
           <div className="text-text/40 text-sm mb-4 uppercase tracking-wider">
             {config.mode === 'bot' ? `Bot Match (${config.botDifficulty})` :
              config.mode === 'timed' ? `Timed (${config.duration}s)` :
-             config.mode === 'accuracy' ? 'Accuracy Challenge' : 'Free Practice'}
+             config.mode === 'accuracy' ? 'Accuracy Challenge' :
+             config.mode === 'sudden-death' ? 'Sudden Death' :
+             config.mode === 'marathon' ? 'Marathon (5:00)' : 'Free Practice'}
           </div>
           <div className="text-[120px] font-bold text-accent leading-none animate-pulse">
             {state.countdownSeconds || '...'}
@@ -80,7 +82,7 @@ export function PracticeGame() {
   }
 
   const isBot = config.mode === 'bot'
-  const isTimed = config.mode === 'timed' || isBot
+  const isTimed = config.mode === 'timed' || isBot || config.mode === 'marathon' || config.mode === 'sudden-death'
   const isLowHp = isBot && state.playerHp > 0 && state.playerHp < 20
 
   // Build a fake PlayerState for TypingArea compatibility
@@ -117,9 +119,11 @@ export function PracticeGame() {
       {/* Top Bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-text/40 text-sm uppercase tracking-wider" data-testid="practice-mode-label">
-          {config.mode === 'bot' ? `Bot Match` :
-           config.mode === 'timed' ? `Timed` :
-           config.mode === 'accuracy' ? 'Accuracy' : 'Free Practice'}
+          {config.mode === 'bot' ? 'Bot Match' :
+           config.mode === 'timed' ? 'Timed' :
+           config.mode === 'accuracy' ? 'Accuracy' :
+           config.mode === 'sudden-death' ? 'Sudden Death' :
+           config.mode === 'marathon' ? 'Marathon' : 'Free Practice'}
         </div>
         <div className="text-4xl font-bold text-accent tabular-nums" data-testid="practice-timer">
           {minutes}:{seconds.toString().padStart(2, '0')}
@@ -168,12 +172,24 @@ export function PracticeGame() {
               <span className="text-xl font-bold text-text/80">{state.accuracy.toFixed(1)}%</span>
               <span className="text-xs text-text/40 ml-1">ACC</span>
             </div>
-            {config.mode === 'accuracy' && (
+            {(config.mode === 'accuracy' || config.mode === 'marathon') && (
               <div>
                 <span className="text-xl font-bold text-accent">{state.totalCorrect}</span>
                 <span className="text-xs text-text/40 ml-1">chars</span>
               </div>
             )}
+            {config.mode === 'sudden-death' && (() => {
+              const threshold = config.difficulty === 'easy' ? 20 : config.difficulty === 'medium' ? 35 : 50
+              const danger = state.timeElapsed > 10 && state.wpm > 0 && state.wpm < threshold + 10
+              return (
+                <div>
+                  <span className={`text-xl font-bold ${danger ? 'text-damage animate-pulse' : 'text-text/40'}`}>
+                    {threshold}
+                  </span>
+                  <span className="text-xs text-text/40 ml-1">min WPM</span>
+                </div>
+              )
+            })()}
           </div>
 
           {/* HP Bar (bot mode) */}

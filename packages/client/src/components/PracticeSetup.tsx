@@ -7,16 +7,18 @@ import { getPersonalBests, getPbKey } from '../practice/engine'
 const MODES: { value: PracticeMode; label: string; desc: string }[] = [
   { value: 'free', label: 'Free Practice', desc: 'Type a passage at your own pace' },
   { value: 'timed', label: 'Timed', desc: 'Type as much as possible before time runs out' },
-  { value: 'accuracy', label: 'Accuracy Challenge', desc: 'One mistake ends the run' },
+  { value: 'accuracy', label: 'Accuracy', desc: 'Infinite text, one mistake ends the run' },
+  { value: 'sudden-death', label: 'Sudden Death', desc: 'Drop below the WPM threshold and it\'s over' },
+  { value: 'marathon', label: 'Marathon', desc: '5-minute endurance run, infinite text' },
   { value: 'bot', label: 'Bot Match', desc: 'Full combat against an AI opponent' },
 ]
 
 const DURATIONS = [15, 30, 60, 120]
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard']
 const BOT_DIFFICULTIES = [
-  { value: 'easy' as const, label: 'Easy Bot', desc: '30 WPM' },
-  { value: 'medium' as const, label: 'Medium Bot', desc: '60 WPM' },
-  { value: 'hard' as const, label: 'Hard Bot', desc: '100 WPM' },
+  { value: 'easy' as const, label: 'Easy Bot', desc: '~35 WPM' },
+  { value: 'medium' as const, label: 'Medium Bot', desc: '~65 WPM' },
+  { value: 'hard' as const, label: 'Hard Bot', desc: '~110 WPM' },
 ]
 
 export function PracticeSetup() {
@@ -51,7 +53,7 @@ export function PracticeSetup() {
         {/* Mode Selection */}
         <div className="mb-5">
           <label className="block text-sm text-text/60 mb-2">Mode</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {MODES.map(m => (
               <button
                 key={m.value}

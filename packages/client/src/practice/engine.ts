@@ -14,7 +14,7 @@ import {
 } from '@typeduel/shared'
 import { sfx } from '../audio'
 
-export type PracticeMode = 'free' | 'timed' | 'accuracy' | 'bot'
+export type PracticeMode = 'free' | 'timed' | 'accuracy' | 'sudden-death' | 'marathon' | 'bot'
 
 export interface PracticeConfig {
   mode: PracticeMode
@@ -89,9 +89,10 @@ function getText(difficulty: Difficulty, minLength: number): string {
 
 export function createInitialState(config: PracticeConfig): PracticeState {
   const isBot = config.mode === 'bot'
-  const isTimed = config.mode === 'timed' || isBot
-  // For timed modes, use enough text for fast typers (~200 WPM = ~1000 chars/min)
-  const minLength = isTimed ? Math.max(500, (isBot ? ROUND_DURATION : config.duration) * 20) : 300
+  const isTimed = config.mode === 'timed' || isBot || config.mode === 'marathon' || config.mode === 'sudden-death'
+  // For timed/marathon modes, use enough text for fast typers
+  const duration = config.mode === 'marathon' ? 300 : config.mode === 'sudden-death' ? 120 : (isBot ? ROUND_DURATION : config.duration)
+  const minLength = isTimed ? Math.max(500, duration * 20) : 300
   const text = getText(config.difficulty, minLength)
   const preset = BOT_PRESETS[config.botDifficulty]
 
@@ -107,7 +108,7 @@ export function createInitialState(config: PracticeConfig): PracticeState {
     maxStreak: 0,
     startTime: 0,
     timeElapsed: 0,
-    timeLeft: isBot ? ROUND_DURATION : (isTimed ? config.duration : 0),
+    timeLeft: isBot ? ROUND_DURATION : config.mode === 'marathon' ? 300 : config.mode === 'sudden-death' ? 120 : (isTimed ? config.duration : 0),
     wpmHistory: [],
     errorIndex: null,
     playerHp: MAX_HP,
@@ -263,10 +264,16 @@ export class PracticeEngine {
         s.playerEnergy = Math.min(MAX_ENERGY, s.playerEnergy + 5)
       }
 
-      // Check text exhaustion (for free mode)
-      if (this.config.mode === 'free' && s.cursor >= s.text.length) {
-        this.finishRound()
-        return
+      // Check text exhaustion
+      if (s.cursor >= s.text.length) {
+        if (this.config.mode === 'accuracy' || this.config.mode === 'sudden-death' || this.config.mode === 'marathon') {
+          // Append more text for infinite modes
+          const extra = getText(this.config.difficulty, 400)
+          s.text = s.text + ' ' + extra
+        } else if (this.config.mode === 'free') {
+          this.finishRound()
+          return
+        }
       }
     } else {
       s.streak = 0
@@ -460,9 +467,23 @@ export class PracticeEngine {
     s.playerActiveEffects = s.playerActiveEffects.filter(e => e.expiresAt > now)
     s.botActiveEffects = s.botActiveEffects.filter(e => e.expiresAt > now)
 
-    if (this.config.mode === 'timed') {
+    if (this.config.mode === 'timed' || this.config.mode === 'marathon') {
       s.timeLeft--
       if (s.timeLeft <= 0) {
+        this.finishRound()
+        return
+      }
+    }
+
+    // Sudden death: WPM must stay above threshold after warmup (10s grace)
+    if (this.config.mode === 'sudden-death') {
+      s.timeLeft--
+      if (s.timeLeft <= 0) {
+        this.finishRound()
+        return
+      }
+      const threshold = this.config.difficulty === 'easy' ? 20 : this.config.difficulty === 'medium' ? 35 : 50
+      if (s.timeElapsed > 10 && s.wpm > 0 && s.wpm < threshold) {
         this.finishRound()
         return
       }
@@ -584,5 +605,7 @@ export function savePersonalBest(key: string, pb: PersonalBest): void {
 export function getPbKey(config: PracticeConfig): string {
   if (config.mode === 'bot') return `bot_${config.difficulty}_${config.botDifficulty}`
   if (config.mode === 'timed') return `timed_${config.difficulty}_${config.duration}`
+  if (config.mode === 'marathon') return `marathon_${config.difficulty}`
+  if (config.mode === 'sudden-death') return `suddendeath_${config.difficulty}`
   return `${config.mode}_${config.difficulty}`
 }

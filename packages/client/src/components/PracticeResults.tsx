@@ -33,7 +33,9 @@ export function PracticeResults() {
 
   const modeLabel = practiceConfig.mode === 'bot' ? 'Bot Match' :
     practiceConfig.mode === 'timed' ? `Timed (${practiceConfig.duration}s)` :
-    practiceConfig.mode === 'accuracy' ? 'Accuracy Challenge' : 'Free Practice'
+    practiceConfig.mode === 'accuracy' ? 'Accuracy Challenge' :
+    practiceConfig.mode === 'sudden-death' ? 'Sudden Death' :
+    practiceConfig.mode === 'marathon' ? 'Marathon' : 'Free Practice'
 
   return (
     <div className="min-h-screen flex items-center justify-center">
