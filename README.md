@@ -1,6 +1,19 @@
-# TypeDuel
+<p align="center">
+  <img src="packages/client/public/banner.svg" alt="TypeDuel" width="700" />
+</p>
 
-Real-time multiplayer typing combat game. MonkeyType meets a fighting game.
+<p align="center">
+  <strong>Real-time multiplayer typing combat.</strong> MonkeyType meets a fighting game.
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> &middot;
+  <a href="#getting-started">Getting Started</a> &middot;
+  <a href="#combat-abilities">Abilities</a> &middot;
+  <a href="#damage-formula">Damage Formula</a>
+</p>
+
+---
 
 Two players type the same passage simultaneously, dealing damage based on WPM and accuracy while disrupting each other with combat abilities. Last player standing wins.
 
@@ -85,7 +98,6 @@ npm run test:e2e  # Playwright e2e tests (~10 tests, ~1.5min)
 
 ### Settings
 - **UI scale** -- small, medium, large font sizes
-- **Screen shake** -- toggle on/off
 - **Reduced motion** -- disables animations for accessibility
 - **High contrast** -- increases text opacity
 - **Sound volume** -- adjustable slider with mute toggle
@@ -95,7 +107,7 @@ npm run test:e2e  # Playwright e2e tests (~10 tests, ~1.5min)
 
 ### Polish
 - **Synthesized sound effects** -- 13 Web Audio API sounds, no external files
-- **Visual effects** -- screen shake, floating damage numbers, CRT scanlines, KO flash
+- **Visual effects** -- floating damage numbers, CRT scanlines, KO flash
 - **Typing streak/combo** -- 3 visual tiers at 10/20/50 streak (STREAK, ON FIRE, UNSTOPPABLE)
 - **Low HP vignette** -- pulsing red overlay and heartbeat below 20% HP
 - **Error highlighting** -- character shake animation on mistype
@@ -107,7 +119,7 @@ npm run test:e2e  # Playwright e2e tests (~10 tests, ~1.5min)
 
 ## Combat Abilities
 
-Energy accrues as you type. Spend it on abilities using hotkeys (Ctrl+1 through Ctrl+6).
+Energy accrues as you type. Abilities fire automatically when you have enough energy, so you can focus on typing.
 
 | Ability      | Cost  | Effect                                |
 |--------------|-------|---------------------------------------|

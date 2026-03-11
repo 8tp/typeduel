@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#040a04"/>
+      <stop offset="100%" stop-color="#0a1a0a"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="300" rx="12" fill="url(#bg)"/>
+
+  <!-- Scanlines -->
+  <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+    <rect width="4" height="1" fill="rgba(0,0,0,0.06)"/>
+  </pattern>
+  <rect width="900" height="300" rx="12" fill="url(#scan)"/>
+
+  <!-- Border -->
+  <rect x="2" y="2" width="896" height="296" rx="10" fill="none" stroke="#22c55e" stroke-width="1" stroke-opacity="0.25"/>
+
+  <!-- Left cursor (green, player) -->
+  <rect x="60" y="80" width="4" height="140" rx="2" fill="#22c55e" opacity="0.6"/>
+
+  <!-- Right cursor (red, opponent) -->
+  <rect x="836" y="80" width="4" height="140" rx="2" fill="#dc2626" opacity="0.4"/>
+
+  <!-- Title -->
+  <text x="450" y="135" text-anchor="middle" font-family="'JetBrains Mono', 'Courier New', monospace" font-size="80" font-weight="700" fill="#22c55e" filter="url(#glow)">TYPEDUEL</text>
+
+  <!-- Tagline -->
+  <text x="450" y="185" text-anchor="middle" font-family="'JetBrains Mono', 'Courier New', monospace" font-size="20" fill="#e2e8e2" fill-opacity="0.5">Real-time multiplayer typing combat</text>
+
+  <!-- Feature badges -->
+  <g font-family="'JetBrains Mono', 'Courier New', monospace" font-size="12" fill="#22c55e" fill-opacity="0.45">
+    <rect x="200" y="215" width="95" height="24" rx="12" fill="none" stroke="#22c55e" stroke-opacity="0.2"/>
+    <text x="247" y="231" text-anchor="middle">WebSocket</text>
+
+    <rect x="310" y="215" width="80" height="24" rx="12" fill="none" stroke="#22c55e" stroke-opacity="0.2"/>
+    <text x="350" y="231" text-anchor="middle">React</text>
+
+    <rect x="405" y="215" width="90" height="24" rx="12" fill="none" stroke="#22c55e" stroke-opacity="0.2"/>
+    <text x="450" y="231" text-anchor="middle">Combat</text>
+
+    <rect x="510" y="215" width="90" height="24" rx="12" fill="none" stroke="#22c55e" stroke-opacity="0.2"/>
+    <text x="555" y="231" text-anchor="middle">Best of 3</text>
+
+    <rect x="615" y="215" width="85" height="24" rx="12" fill="none" stroke="#22c55e" stroke-opacity="0.2"/>
+    <text x="657" y="231" text-anchor="middle">Open Src</text>
+  </g>
+
+  <!-- Keyboard key accent marks -->
+  <g fill="none" stroke="#22c55e" stroke-opacity="0.08" stroke-width="1">
+    <rect x="100" y="250" width="30" height="30" rx="4"/>
+    <rect x="135" y="250" width="30" height="30" rx="4"/>
+    <rect x="170" y="250" width="30" height="30" rx="4"/>
+    <rect x="205" y="250" width="30" height="30" rx="4"/>
+    <rect x="240" y="250" width="30" height="30" rx="4"/>
+    <rect x="275" y="250" width="30" height="30" rx="4"/>
+    <rect x="310" y="250" width="30" height="30" rx="4"/>
+    <rect x="345" y="250" width="30" height="30" rx="4"/>
+    <rect x="380" y="250" width="30" height="30" rx="4"/>
+    <rect x="415" y="250" width="30" height="30" rx="4"/>
+    <rect x="450" y="250" width="30" height="30" rx="4"/>
+    <rect x="485" y="250" width="30" height="30" rx="4"/>
+    <rect x="520" y="250" width="30" height="30" rx="4"/>
+    <rect x="555" y="250" width="30" height="30" rx="4"/>
+    <rect x="590" y="250" width="30" height="30" rx="4"/>
+    <rect x="625" y="250" width="30" height="30" rx="4"/>
+    <rect x="660" y="250" width="30" height="30" rx="4"/>
+    <rect x="695" y="250" width="30" height="30" rx="4"/>
+    <rect x="730" y="250" width="30" height="30" rx="4"/>
+    <rect x="765" y="250" width="30" height="30" rx="4"/>
+  </g>
+</svg>
