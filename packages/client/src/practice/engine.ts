@@ -24,9 +24,9 @@ export interface PracticeConfig {
 }
 
 const BOT_PRESETS = {
-  easy: { wpmBase: 30, wpmVariance: 10, accuracy: 0.90, abilityChance: 0.02 },
-  medium: { wpmBase: 60, wpmVariance: 18, accuracy: 0.95, abilityChance: 0.05 },
-  hard: { wpmBase: 100, wpmVariance: 20, accuracy: 0.98, abilityChance: 0.08 },
+  easy: { wpmBase: 35, wpmVariance: 10, accuracy: 0.90, abilityChance: 0.02 },
+  medium: { wpmBase: 65, wpmVariance: 15, accuracy: 0.95, abilityChance: 0.05 },
+  hard: { wpmBase: 110, wpmVariance: 18, accuracy: 0.98, abilityChance: 0.10 },
 }
 
 export interface PracticeState {
@@ -200,17 +200,15 @@ export class PracticeEngine {
     const variance = this.botPreset.wpmVariance
     this.botTargetWpm = this.botPreset.wpmBase + (Math.random() * 2 - 1) * variance
 
-    // If bot has scramble effect, slow down significantly
+    // Abilities slow the bot down (moderate impact, not crippling)
     if (this.state.botActiveEffects.some(e => e.abilityId === AbilityId.SCRAMBLE)) {
-      this.botTargetWpm *= 0.5
+      this.botTargetWpm *= 0.75
     }
-    // If bot has phantom keys, slow down a bit (confusion)
     if (this.state.botActiveEffects.some(e => e.abilityId === AbilityId.PHANTOM_KEYS)) {
-      this.botTargetWpm *= 0.7
+      this.botTargetWpm *= 0.85
     }
-    // If bot has blackout, moderate slowdown
     if (this.state.botActiveEffects.some(e => e.abilityId === AbilityId.BLACKOUT)) {
-      this.botTargetWpm *= 0.8
+      this.botTargetWpm *= 0.9
     }
   }
 
@@ -340,13 +338,13 @@ export class PracticeEngine {
 
     // Bot types with configured accuracy (affected by effects)
     let accuracy = this.botPreset.accuracy
-    // Scramble reduces bot accuracy
+    // Scramble reduces bot accuracy slightly
     if (s.botActiveEffects.some(e => e.abilityId === AbilityId.SCRAMBLE)) {
-      accuracy *= 0.7
+      accuracy *= 0.88
     }
-    // Phantom keys cause more errors
+    // Phantom keys cause a few more errors
     if (s.botActiveEffects.some(e => e.abilityId === AbilityId.PHANTOM_KEYS)) {
-      accuracy *= 0.85
+      accuracy *= 0.92
     }
 
     const isCorrect = Math.random() < accuracy

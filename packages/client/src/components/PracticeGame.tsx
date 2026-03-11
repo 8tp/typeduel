@@ -221,7 +221,10 @@ export function PracticeGame() {
         {isBot && (
           <>
             <div className="w-px bg-border" />
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 relative">
+              {/* Bot effect overlays */}
+              <EffectOverlays effects={state.botActiveEffects} />
+
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-text/60 uppercase tracking-wider">Bot</span>
                 <span className="font-bold text-lg text-damage">{config.botDifficulty.toUpperCase()}</span>

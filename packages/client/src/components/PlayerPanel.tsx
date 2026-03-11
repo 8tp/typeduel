@@ -55,8 +55,8 @@ export const PlayerPanel = memo(function PlayerPanel({ player, text, isLocal, la
 
   return (
     <div className="flex-1 min-w-0 relative">
-      {/* Effect overlays (only on local player for offensive effects) */}
-      {isLocal && <EffectOverlays effects={player.activeEffects} />}
+      {/* Effect overlays (shown on both sides) */}
+      <EffectOverlays effects={player.activeEffects} />
 
       {/* Combo counter with escalating visuals */}
       {isLocal && comboTier >= 1 && (
