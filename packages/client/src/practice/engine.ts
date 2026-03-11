@@ -24,9 +24,9 @@ export interface PracticeConfig {
 }
 
 const BOT_PRESETS = {
-  easy: { wpmBase: 30, wpmVariance: 8, accuracy: 0.90, abilityChance: 0.02 },
-  medium: { wpmBase: 60, wpmVariance: 12, accuracy: 0.95, abilityChance: 0.05 },
-  hard: { wpmBase: 100, wpmVariance: 15, accuracy: 0.98, abilityChance: 0.08 },
+  easy: { wpmBase: 30, wpmVariance: 10, accuracy: 0.90, abilityChance: 0.02 },
+  medium: { wpmBase: 60, wpmVariance: 18, accuracy: 0.95, abilityChance: 0.05 },
+  hard: { wpmBase: 100, wpmVariance: 20, accuracy: 0.98, abilityChance: 0.08 },
 }
 
 export interface PracticeState {
@@ -141,14 +141,15 @@ export class PracticeEngine {
   private botTargetWpm: number
   private botTotalCorrect: number = 0
   private botTotalKeystrokes: number = 0
+  private botRecentCorrect: number[] = [] // timestamps of recent correct keystrokes
 
   constructor(config: PracticeConfig, onChange: (state: PracticeState) => void) {
     this.config = config
     this.state = createInitialState(config)
     this.onChange = onChange
     this.botPreset = BOT_PRESETS[config.botDifficulty]
-    // Start bot WPM at a natural ramp-up speed (lower than target)
-    this.botCurrentWpm = this.botPreset.wpmBase * 0.6
+    // Start bot WPM near target with slight ramp-up
+    this.botCurrentWpm = this.botPreset.wpmBase * 0.85
     this.botTargetWpm = this.botPreset.wpmBase
   }
 
@@ -214,8 +215,8 @@ export class PracticeEngine {
   }
 
   private updateBotTypingSpeed(): void {
-    // Smoothly approach target WPM
-    this.botCurrentWpm += (this.botTargetWpm - this.botCurrentWpm) * 0.3
+    // Quickly approach target WPM
+    this.botCurrentWpm += (this.botTargetWpm - this.botCurrentWpm) * 0.6
 
     // Clear existing bot interval
     if (this.botInterval) {
@@ -349,9 +350,11 @@ export class PracticeEngine {
     }
 
     const isCorrect = Math.random() < accuracy
+    const now = Date.now()
     if (isCorrect) {
       s.botCursor++
       this.botTotalCorrect++
+      this.botRecentCorrect.push(now)
     }
 
     // Update bot accuracy display
@@ -359,10 +362,21 @@ export class PracticeEngine {
       ? (this.botTotalCorrect / this.botTotalKeystrokes) * 100
       : 100
 
-    // Update bot WPM from actual cursor position
-    const elapsed = (Date.now() - s.startTime) / 60000
-    if (elapsed > 0) {
-      s.botWpm = Math.round((this.botTotalCorrect / 5) / elapsed)
+    // Update bot WPM using recent window (last 10s) for responsive display
+    const windowMs = 10000
+    this.botRecentCorrect = this.botRecentCorrect.filter(t => now - t < windowMs)
+    if (this.botRecentCorrect.length >= 2) {
+      const windowStart = this.botRecentCorrect[0]
+      const windowElapsed = (now - windowStart) / 60000
+      if (windowElapsed > 0) {
+        s.botWpm = Math.round((this.botRecentCorrect.length / 5) / windowElapsed)
+      }
+    } else {
+      // Fallback to cumulative for first few seconds
+      const elapsed = (now - s.startTime) / 60000
+      if (elapsed > 0) {
+        s.botWpm = Math.round((this.botTotalCorrect / 5) / elapsed)
+      }
     }
 
     // Bot energy accrual

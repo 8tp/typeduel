@@ -69,9 +69,9 @@ export const TypingArea = memo(function TypingArea({ text, player, isLocal, curs
 
   const displayText = useScramble(text, cursor, hasScramble)
 
-  // Auto-scroll to keep cursor visible
+  // Auto-scroll to keep cursor visible (both local and opponent/bot)
   useEffect(() => {
-    if (!containerRef.current || !isLocal) return
+    if (!containerRef.current) return
     const cursorSpan = containerRef.current.querySelector('[data-cursor]') as HTMLElement | null
     if (!cursorSpan) return
     const container = containerRef.current
@@ -79,7 +79,7 @@ export const TypingArea = memo(function TypingArea({ text, player, isLocal, curs
     const targetOffset = container.clientWidth * 0.3
     const cursorLeft = cursorSpan.offsetLeft
     container.scrollLeft = cursorLeft - targetOffset
-  }, [cursor, isLocal])
+  }, [cursor])
 
   return (
     <div
@@ -109,7 +109,7 @@ export const TypingArea = memo(function TypingArea({ text, player, isLocal, curs
         }
         if (i === cursor && !isLocal) {
           return (
-            <span key={i} className="relative">
+            <span key={i} data-cursor className="relative">
               <span className="absolute -left-[1px] top-0 w-[2px] h-[1.2em] bg-damage" />
               <span className="text-text/30">{char === ' ' ? '\u00A0' : char}</span>
             </span>
