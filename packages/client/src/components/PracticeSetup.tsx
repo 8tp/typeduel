@@ -91,7 +91,7 @@ export function PracticeSetup() {
         </div>
 
         {/* Duration (timed/bot only) */}
-        {(mode === 'timed' || mode === 'bot') && (
+        {mode === 'timed' && (
           <div className="mb-5">
             <label className="block text-sm text-text/60 mb-2">Duration</label>
             <div className="flex gap-2">
