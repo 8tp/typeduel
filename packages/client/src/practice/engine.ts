@@ -559,6 +559,10 @@ export class PracticeEngine {
     }
 
     if (this.config.mode === 'bot') {
+      // Recalculate bot WPM as cumulative average (not rolling window)
+      if (elapsed > 0) {
+        this.state.botWpm = Math.round((this.botTotalCorrect / 5) / elapsed)
+      }
       const isWinner = this.state.botHp <= 0 || (this.state.playerHp > this.state.botHp)
       if (isWinner) sfx.victory()
       else sfx.defeat()
